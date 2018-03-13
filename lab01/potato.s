@@ -12,7 +12,7 @@ height 	EQU 64
 		EXPORT mov_image
 		
 		EXTERN airplaneImage
-		;EXTERN busImage
+		EXTERN busImage
 		EXTERN vel
 		EXTERN aviao
 		EXTERN sentidoNormal
@@ -27,7 +27,98 @@ height 	EQU 64
 ;        sentidoNormal: se 1, movimenta para cima ou esquerda; senão, movimenta para baixo ou direita
 ;        buffer:        espaço em memória de 5 bytes utilizado na movimentação
 ; Output: nenhum
+;
 ; Modifica: R0, R1, R2, R3, R4, R5, R6, R7
+;
+; Equivalente em C:
+;	if (aviao) {
+;		/* LÓGICA PARA MOVIMENTAÇÃO DO AVIÃO */
+;		// O movimento vertical é mais complicado, porque o acesso sequencial ao vetor é horizontal.
+;		if (sentidoNormal) {
+;			// Move para CIMA de acordo com a velocidade
+;			// Para cada coluna...
+;			for (posx = 0; posx < largura; ++posx) {
+;				// Retira os "vel" primeiros e coloca no buffer
+;				for (posy = 0; posy < vel; ++posy) {
+;					buffer[posy] = airplaneImage[posx + posy*largura];
+;				}
+;
+;				// Move os restantes para cima
+;				for (posy = vel; posy < altura; ++posy) {
+;					airplaneImage[posx + (posy - vel)*largura] = airplaneImage[posx + posy*largura];
+;				}
+;
+;				// Coloca o buffer nas últimas posições
+;				for (posy = altura - vel, i = 0; posy < altura; ++posy, ++i) {
+;					airplaneImage[posx + posy*largura] = buffer[i];
+;				}
+;			}
+;		}
+;		else {
+;			// Move para BAIXO de acordo com a velocidade
+;			// Para cada coluna...
+;			for (posx = 0; posx < largura; ++posx) {
+;				// Retira os "vel" últimos e coloca no buffer
+;				for (posy = altura - vel, i = 0; posy < altura; ++posy, ++i) {
+;					buffer[i] = airplaneImage[posx + posy*largura];
+;				}
+;
+;				// Move os restantes para baixo
+;				for (posy = (altura-1) - vel; posy >= 0; --posy) {
+;					airplaneImage[posx + (posy + vel)*largura] = airplaneImage[posx + posy*largura];
+;				}
+;
+;				// Coloca o buffer nas primeiras posições
+;				for (posy = 0; posy < vel; ++posy) {
+;					airplaneImage[posx + posy*largura] = buffer[posy];
+;				}
+;			}
+;		}
+;	}
+;	else {
+;		/* LÓGICA PARA MOVIMENTAÇÃO DO ÔNIBUS */
+;		// Como o movimento é horizontal, podemos tratar a imagem como um vetor unidimensional.
+;		if (sentidoNormal) {
+;			// Move para a ESQUERDA de acordo com a velocidade
+;			// Para cada linha...
+;			for (posy = 0; posy < altura; ++posy) {
+;				// Retira os "vel" primeiros e coloca no buffer
+;				for (posx = 0; posx < vel; ++posx) {
+;					buffer[posx] = busImage[posx + posy*largura];
+;				}
+;
+;				// Move os restantes para a esquerda
+;				for (posx = vel; posx < largura; ++posx) {
+;					busImage[posx - vel + posy*largura] = busImage[posx + posy*largura];
+;				}
+;
+;				// Coloca o buffer nas últimas posições
+;				for (posx = largura - vel, i = 0; posx < largura; ++posx, ++i) {
+;					busImage[posx + posy*largura] = buffer[i];
+;				}
+;			}
+;		}
+;		else {
+;			// Move para a DIREITA de acordo com a velocidade
+;			// Para cada linha...
+;			for (posy = 0; posy < altura; ++posy) {
+;				// Retira os "vel" últimos e coloca no buffer
+;				for (posx = largura - vel, i = 0; posx < largura; ++posx, ++i) {
+;					buffer[i] = busImage[posx + posy*largura];
+;				}
+;
+;				// Move os restantes para a direita
+;				for (posx = (largura-1) - vel; posx >= 0; --posx) {
+;					busImage[posx + vel + posy*largura] = busImage[posx + posy*largura];
+;				}
+;
+;				// Coloca o buffer nas primeiras posições
+;				for (posx = 0; posx < vel; ++posx) {
+;					busImage[posx + posy*largura] = buffer[posx];
+;				}
+;			}
+;		}
+;	}
 
 mov_image
 		PUSH {R0-R7}
@@ -191,33 +282,149 @@ aviao_reverso_restaura_buf
 ; =======
 eh_onibus
 		LDR R0, =sentidoNormal			; Carrega o ponteiro da variável sentidoNormal
-		LDR R0, [R0]					; R0 = sentidoNormal
+		LDRB R0, [R0]					; R0 = sentidoNormal
 		CBZ R0, onibus_reverso			; Se sentidoNormal == 0, move no sentido reverso
 										; Senão, movimenta no sentido normal
 
-; ----------------------------
-; Ônibus se movendo para cima
-; ----------------------------
+; ----------------------------------
+; Ônibus se movendo para a esquerda
+; ----------------------------------
+
+		; =================
+		; Loop externo
 onibus_normal
 		
 		MOV R3, #0						; R3 = posy = 0
 onibus_normal_for_y
-		; @TODO
-		; Conteúdo do for
+		
+		; ------
+		; Primeiro loop - Carrega buffer
+		LDR R0, =busImage				; R0 = busImage
+		LDR R1, =buffer					; R1 = buffer
+		LDR R6, =vel
+		LDR R6, [R6]					; R6 = vel
+		MOV R2, #0						; R2 = posx = 0
+		MOV R7, #width					; temporário para multiplicar
+		MOV R4, R3
+		MUL R4, R4, R7					; R4 = posy*largura (índice inicial da linha)
+onibus_normal_preenche_buf
+			LDRB R5, [R0, R4]				; R5 = busImage[R4] = busImage[posx + posy*largura]
+			STRB R5, [R1, R2]				; buffer[posx] = R5
+			
+			ADD R4, #1						; R4 ++
+			ADD R2, #1						; R2 ++
+			CMP R2, R6
+			BLT onibus_normal_preenche_buf	; Se posx < vel, vai para o próximo item
+											; Senão, começa a mover pixels
+		
+		; ------
+		; Segundo loop - move os restantes para a esquerda
+										; R2 já tem o valor certo (vel)
+										; R4 já tem o valor certo (vel + posy*largura)
+		MOV R7, R4
+		SUB R7, R6						; R7 = posy*largura (índice inicial da linha)
+onibus_normal_move_pixels
+			LDRB R5, [R0, R4]				; R5 = busImage[posx + posy*largura]
+			STRB R5, [R0, R7]				; busImage[posx - vel + posy*largura] = R5
+			
+			ADD R4, #1						; R4 ++
+			ADD R7, #1						; R7 ++
+			ADD R2, #1						; posx ++
+			CMP R2, #width
+			BLT onibus_normal_move_pixels	; Se posx < largura, vai para o próximo item
+											; Senão, começa a recolocar o buffer
+		
+		; ------
+		; Terceiro loop - recoloca o buffer no final
+		SUB R2, R6						; posx = largura - vel
+		SUB R4, R6						; R4 = posx + posy*largura
+		MOV R7, #0						; i = 0
+onibus_normal_restaura_buf
+			LDRB R5, [R1, R7]				; R5 = buffer[i]
+			STRB R5, [R0, R4]				; busImage[posx + posy*largura] = R5
+			
+			ADD R4, #1						; R4 ++
+			ADD R7, #1						; i ++
+			ADD R2, #1						; posx ++
+			CMP R2, #width
+			BLT onibus_normal_restaura_buf	; Se posx < largura, vai para o próximo item
+											; Senão, vai para a próxima linha
+		
+		; =================
+		; Fim loop externo
 		ADD R3, #1						; posy++
 		CMP R3, #height
 		BLT onibus_normal_for_y			; Se posy < altura, vai para a próxima linha
 		B vazar							; Senão, finaliza a função
 
-; -----------------------------
-; Ônibus se movendo para baixo
-; -----------------------------
+; ---------------------------------
+; Ônibus se movendo para a direita
+; ---------------------------------
+
+		; =================
+		; Loop externo
 onibus_reverso
 
 		MOV R3, #0						; R3 = posy = 0
 onibus_reverso_for_y
-		; @TODO
-		; Conteúdo do for
+		
+		; ------
+		; Primeiro loop - Carrega buffer
+		LDR R0, =busImage				; R0 = busImage
+		LDR R1, =buffer					; R1 = buffer
+		LDR R6, =vel
+		LDR R6, [R6]					; R6 = vel
+		MOV R2, #width
+		SUB R2, R6						; R2 = posx = largura - vel
+		MOV R7, #width					; temporário para multiplicar
+		MOV R4, R3
+		MLA R4, R4, R7, R2				; R4 = posx + posy*largura
+		MOV R7, #0						; R7 = i = 0
+onibus_reverso_preenche_buf
+			LDRB R5, [R0, R4]				; R5 = busImage[posx + posy*largura]
+			STRB R5, [R1, R7]				; buffer[i] = R5
+			
+			ADD R4, #1						; R4 ++
+			ADD R7, #1						; i ++
+			ADD R2, #1						; posx ++
+			CMP R2, #width
+			BLT onibus_reverso_preenche_buf	; Se posx < largura, vai para o próximo item
+											; Senão, começa a mover pixels
+		
+		; ------
+		; Segundo loop - move os restantes para a direita
+		SUB R2, R6
+		SUB R2, #1						; R2 = posx = (largura-1) - vel
+		SUB R4, #1
+		MOV R7, R4						; R7 = posx + vel + posy*largura (índice destino)
+		SUB R4, R6						; R4 = posx + posy*largura       (índice origem)
+onibus_reverso_move_pixels
+			LDRB R5, [R0, R4]				; R5 = busImage[posx + posy*largura]
+			STRB R5, [R0, R7]				; busImage[posx + vel + posy*largura] = R5
+			
+			SUB R4, #1						; R4 --
+			SUB R7, #1						; R7 --
+			SUB R2, #1						; posx --
+			CMP R2, #0
+			BGE onibus_reverso_move_pixels	; Se posx >= 0, vai para o próximo item
+											; Senão, começa a recolocar o buffer
+		
+		; ------
+		; Terceiro loop - recoloca o buffer no começo
+		MOV R2, #0						; R2 = posx = 0
+		ADD R4, #1						; R4 = posx + posy*largura (desfazendo o decremento)
+onibus_reverso_restaura_buf
+			LDRB R5, [R1, R2]				; R5 = buffer[posx]
+			STRB R5, [R0, R4]				; busImage[posx + posy*largura] = R5
+			
+			ADD R4, #1						; R4 ++
+			ADD R2, #1						; posx ++
+			CMP R2, R6
+			BLT onibus_reverso_restaura_buf	; Se posx < vel, vai para o próximo item
+											; Senão, vai para a próxima linha
+		
+		; =================
+		; Fim loop externo
 		ADD R3, #1						; posy++
 		CMP R3, #height
 		BLT onibus_reverso_for_y		; Se posy < altura, vai para a próxima linha
