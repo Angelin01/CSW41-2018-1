@@ -61,7 +61,7 @@ void generateKey(void const* arg) {
 		simpleByteToString(i, string);
 		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
 		threadNum = 2;
-		fprintf(ganttFile, "generateKey: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
+		//fprintf(ganttFile, "generateKey: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
@@ -79,7 +79,7 @@ void decodeMsg(void const* arg) {
 		simpleByteToString(i, string);
 		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
 		threadNum = 3;
-		fprintf(ganttFile, "decodeMsg: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
+		//fprintf(ganttFile, "decodeMsg: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
@@ -97,7 +97,7 @@ void testDivTwo(void const* arg) {
 		simpleByteToString(i, string);
 		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
 		threadNum = 4;
-		fprintf(ganttFile, "testDivTwo: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
+		//fprintf(ganttFile, "testDivTwo: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
@@ -115,7 +115,7 @@ void testSquareDiv(void const* arg) {
 		simpleByteToString(i, string);
 		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
 		threadNum = 5;
-		fprintf(ganttFile, "testSquareDiv: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
+		//fprintf(ganttFile, "testSquareDiv: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
@@ -133,7 +133,7 @@ void testPrime(void const* arg) {
 		simpleByteToString(i, string);
 		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
 		threadNum = 6;
-		fprintf(ganttFile, "testPrime: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
+		//fprintf(ganttFile, "testPrime: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
@@ -151,7 +151,7 @@ void printResult(void const* arg) {
 		simpleByteToString(i, string);
 		GrStringDraw(&sContext,(char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
 		threadNum = 1;
-		fprintf(printResult, "testPrime: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
+		//fprintf(printResult, "testPrime: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
