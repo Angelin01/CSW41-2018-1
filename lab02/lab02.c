@@ -7,6 +7,11 @@
 
 #include "cfaf128x128x16.h"
 
+// PAra diagramas de Gantt
+#define TICKS_FACTOR 10000
+FILE *ganttFile;
+uint_32t time;
+
 // Número da próxima thread a executar
 int threadNum = 0;
 
@@ -45,7 +50,8 @@ void simpleByteToString(uint8_t value, char* buffer) {
 // Thread 1: gera uma chave
 void generateKey(void const* arg) {
 	uint8_t i;
-	for (i = 0; true; i++) {
+	for (i = 0; true; ++i) {
+		time = osKernelSysTick()/TICKS_FACTOR;
 		while (threadNum != 1) {
 			//osThreadYield();
 			osDelay(10000);
@@ -53,15 +59,17 @@ void generateKey(void const* arg) {
 		
 		//printf("Thread 1: iter %u\n", i);
 		simpleByteToString(i, string);
-		GrStringDraw(&sContext,(char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
+		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
 		threadNum = 2;
+		fprintf(ganttFile, "generateKey: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
 // Thread 2: faz a decodificação usando a chave, preenchendo o buffer "decoded"
 void decodeMsg(void const* arg) {
 	uint8_t i;
-	for (i = 0; true; i++) {
+	for (i = 0; true; ++i) {
+		time = osKernelSysTick()/TICKS_FACTOR;
 		while (threadNum != 2) {
 			//osThreadYield();
 			osDelay(10000);
@@ -69,15 +77,17 @@ void decodeMsg(void const* arg) {
 		
 		//printf("Thread 2: iter %u\n", i);
 		simpleByteToString(i, string);
-		GrStringDraw(&sContext,(char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
+		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
 		threadNum = 3;
+		fprintf(ganttFile, "decodeMsg: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
 // Thread 3: faz o teste da penúltima word (divisão por dois)
 void testDivTwo(void const* arg) {
 	uint8_t i;
-	for (i = 0; true; i++) {
+	for (i = 0; true; ++i) {
+		time = osKernelSysTick()/TICKS_FACTOR;
 		while (threadNum != 3) {
 			//osThreadYield();
 			osDelay(10000);
@@ -85,15 +95,17 @@ void testDivTwo(void const* arg) {
 		
 		//printf("Thread 3: iter %u\n", i);
 		simpleByteToString(i, string);
-		GrStringDraw(&sContext,(char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
+		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
 		threadNum = 4;
+		fprintf(ganttFile, "testDivTwo: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
 // Thread 4: faz o teste da última word (quadrado da chave dividido pelo primo anterior)
 void testSquareDiv(void const* arg) {
 	uint8_t i;
-	for (i = 0; true; i++) {
+	for (i = 0; true; ++i) {
+		time = osKernelSysTick()/TICKS_FACTOR;
 		while (threadNum != 4) {
 			//osThreadYield();
 			osDelay(10000);
@@ -101,15 +113,17 @@ void testSquareDiv(void const* arg) {
 		
 		//printf("Thread 4: iter %u\n", i);
 		simpleByteToString(i, string);
-		GrStringDraw(&sContext,(char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
+		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
 		threadNum = 5;
+		fprintf(ganttFile, "testSquareDiv: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
 // Thread 5: faz o teste de primalidade da chave
 void testPrime(void const* arg) {
 	uint8_t i;
-	for (i = 0; true; i++) {
+	for (i = 0; true; ++i) {
+		time = osKernelSysTick()/TICKS_FACTOR;
 		while (threadNum != 5) {
 			//osThreadYield();
 			osDelay(10000);
@@ -117,15 +131,17 @@ void testPrime(void const* arg) {
 		
 		//printf("Thread 5: iter %u\n", i);
 		simpleByteToString(i, string);
-		GrStringDraw(&sContext,(char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
+		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
 		threadNum = 6;
+		fprintf(ganttFile, "testPrime: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
 // Thread 6: Mostra os resultados no console
 void printResult(void const* arg) {
 	uint8_t i;
-	for (i = 0; true; i++) {
+	for (i = 0; true; ++i) {
+		time = osKernelSysTick()/TICKS_FACTOR;
 		while (threadNum != 6) {
 			//osThreadYield();
 			osDelay(10000);
@@ -135,6 +151,7 @@ void printResult(void const* arg) {
 		simpleByteToString(i, string);
 		GrStringDraw(&sContext,(char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
 		threadNum = 1;
+		fprintf(printResult, "testPrime: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
