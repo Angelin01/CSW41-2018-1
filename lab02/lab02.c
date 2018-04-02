@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "cmsis_os.h"
 #include "TM4C129.h"
@@ -7,151 +8,404 @@
 
 #include "cfaf128x128x16.h"
 
-// PAra diagramas de Gantt
-#define TICKS_FACTOR 10000
-FILE *ganttFile;
-uint_32t time;
+#define MSG_WORD_COUNT 35
+#define MSG_TO_USE msg1
 
 // Número da próxima thread a executar
 int threadNum = 0;
 
-// Número da chave atual
-int key = 3;
-
-// Número primo anterior para o segundo teste
-int previousPrime = 2;
+// Sinaliza se é a primeira iteração
+bool firstIter = true;
 
 // Sinaliza se a mensagem foi decodificada com sucesso
-bool deuboa = true;
+bool deuboa = false;
+
+// Mensagens codificadas
+uint8_t msg1[4*MSG_WORD_COUNT] = {
+	0x5a, 0x99, 0x01, 0x00, 0x66, 0x67, 0xfe, 0xff,
+	0x76, 0x99, 0x01, 0x00, 0x68, 0x67, 0xfe, 0xff,
+	0x7b, 0x99, 0x01, 0x00, 0x61, 0x67, 0xfe, 0xff,
+	0x27, 0x99, 0x01, 0x00, 0x26, 0x67, 0xfe, 0xff,
+	0x27, 0x99, 0x01, 0x00, 0x4c, 0x67, 0xfe, 0xff,
+	0x68, 0x99, 0x01, 0x00, 0x67, 0x67, 0xfe, 0xff,
+	0x7b, 0x99, 0x01, 0x00, 0x5a, 0x67, 0xfe, 0xff,
+	0x75, 0x99, 0x01, 0x00, 0x5a, 0x67, 0xfe, 0xff,
+	0x27, 0x99, 0x01, 0x00, 0x5f, 0x67, 0xfe, 0xff,
+	0x6c, 0x99, 0x01, 0x00, 0x5a, 0x67, 0xfe, 0xff,
+	0x7b, 0x99, 0x01, 0x00, 0x27, 0x67, 0xfe, 0xff,
+	0x27, 0x99, 0x01, 0x00, 0x4b, 0x67, 0xfe, 0xff,
+	0x76, 0x99, 0x01, 0x00, 0x5b, 0x67, 0xfe, 0xff,
+	0x27, 0x99, 0x01, 0x00, 0x4d, 0x67, 0xfe, 0xff,
+	0x6f, 0x99, 0x01, 0x00, 0x68, 0x67, 0xfe, 0xff,
+	0x74, 0x99, 0x01, 0x00, 0x5a, 0x67, 0xfe, 0xff,
+	0x7a, 0x99, 0x01, 0x00,
+	0x8a, 0x65, 0x02, 0x00, 0x8e, 0xbf, 0xfe, 0xff  // Bytes de verificação
+};
+
+uint8_t msg2[4*MSG_WORD_COUNT] = {
+	0x88, 0x20, 0xae, 0x8b, 0x33, 0xe0, 0x51, 0x74,
+	0xa8, 0x20, 0xae, 0x8b, 0x2f, 0xe0, 0x51, 0x74,
+	0xbc, 0x20, 0xae, 0x8b, 0xdd, 0xdf, 0x51, 0x74,
+	0x85, 0x20, 0xae, 0x8b, 0x2f, 0xe0, 0x51, 0x74,
+	0xa8, 0x20, 0xae, 0x8b, 0x1e, 0xe0, 0x51, 0x74,
+	0xb7, 0x20, 0xae, 0x8b, 0x25, 0xe0, 0x51, 0x74,
+	0x63, 0x20, 0xae, 0x8b, 0x16, 0xe0, 0x51, 0x74,
+	0xb2, 0x20, 0xae, 0x8b, 0x32, 0xe0, 0x51, 0x74,
+	0x63, 0x20, 0xae, 0x8b, 0x11, 0xe0, 0x51, 0x74,
+	0xa4, 0x20, 0xae, 0x8b, 0x28, 0xe0, 0x51, 0x74,
+	0xa8, 0x20, 0xae, 0x8b, 0xdd, 0xdf, 0x51, 0x74,
+	0x70, 0x20, 0xae, 0x8b, 0xdd, 0xdf, 0x51, 0x74,
+	0x97, 0x20, 0xae, 0x8b, 0x25, 0xe0, 0x51, 0x74,
+	0xa8, 0x20, 0xae, 0x8b, 0xdd, 0xdf, 0x51, 0x74,
+	0x93, 0x20, 0xae, 0x8b, 0x2c, 0xe0, 0x51, 0x74,
+	0xaf, 0x20, 0xae, 0x8b, 0x26, 0xe0, 0x51, 0x74,
+	0xa6, 0x20, 0xae, 0x8b,
+	0x64, 0x30, 0x85, 0xd1, 0xbe, 0xdf, 0x51, 0x74  // Bytes de verificação
+};
+
+uint8_t msg3[4*MSG_WORD_COUNT] = {
+	0x07, 0x6a, 0x00, 0x00, 0xb5, 0x96, 0xff, 0xff, 
+	0x18, 0x6a, 0x00, 0x00, 0x6d, 0x96, 0xff, 0xff, 
+	0xf7, 0x69, 0x00, 0x00, 0xbc, 0x96, 0xff, 0xff, 
+	0x22, 0x6a, 0x00, 0x00, 0xbf, 0x96, 0xff, 0xff, 
+	0x26, 0x6a, 0x00, 0x00, 0x6d, 0x96, 0xff, 0xff, 
+	0xe0, 0x69, 0x00, 0x00, 0x6d, 0x96, 0xff, 0xff, 
+	0xff, 0x69, 0x00, 0x00, 0xb6, 0x96, 0xff, 0xff, 
+	0x1a, 0x6a, 0x00, 0x00, 0xb5, 0x96, 0xff, 0xff, 
+	0x27, 0x6a, 0x00, 0x00, 0x6d, 0x96, 0xff, 0xff, 
+	0x00, 0x6a, 0x00, 0x00, 0xc6, 0x96, 0xff, 0xff, 
+	0xd3, 0x69, 0x00, 0x00, 0x93, 0x96, 0xff, 0xff, 
+	0x1c, 0x6a, 0x00, 0x00, 0xbf, 0x96, 0xff, 0xff, 
+	0x18, 0x6a, 0x00, 0x00, 0x6d, 0x96, 0xff, 0xff, 
+	0xd3, 0x69, 0x00, 0x00, 0x6d, 0x96, 0xff, 0xff, 
+	0xd3, 0x69, 0x00, 0x00, 0x6d, 0x96, 0xff, 0xff, 
+	0xd3, 0x69, 0x00, 0x00, 0x6d, 0x96, 0xff, 0xff, 
+	0xd3, 0x69, 0x00, 0x00,
+	0x8c, 0x9e, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00 // Bytes de verificação
+};
+
+uint8_t msg4[4*MSG_WORD_COUNT] = {
+	0xc5, 0x97, 0xd7, 0x17, 0xf7, 0x68, 0x28, 0xe8,
+	0xd6, 0x97, 0xd7, 0x17, 0xaf, 0x68, 0x28, 0xe8, 
+	0xb6, 0x97, 0xd7, 0x17, 0xf0, 0x68, 0x28, 0xe8, 
+	0xd8, 0x97, 0xd7, 0x17, 0xfb, 0x68, 0x28, 0xe8, 
+	0xd6, 0x97, 0xd7, 0x17, 0x02, 0x69, 0x28, 0xe8, 
+	0x91, 0x97, 0xd7, 0x17, 0xbc, 0x68, 0x28, 0xe8, 
+	0x91, 0x97, 0xd7, 0x17, 0xd7, 0x68, 0x28, 0xe8, 
+	0xe0, 0x97, 0xd7, 0x17, 0x03, 0x69, 0x28, 0xe8, 
+	0xd6, 0x97, 0xd7, 0x17, 0xfb, 0x68, 0x28, 0xe8, 
+	0x91, 0x97, 0xd7, 0x17, 0xd2, 0x68, 0x28, 0xe8, 
+	0xd2, 0x97, 0xd7, 0x17, 0xfb, 0x68, 0x28, 0xe8, 
+	0xda, 0x97, 0xd7, 0x17, 0xf5, 0x68, 0x28, 0xe8, 
+	0xe0, 0x97, 0xd7, 0x17, 0x01, 0x69, 0x28, 0xe8, 
+	0xdf, 0x97, 0xd7, 0x17, 0xf8, 0x68, 0x28, 0xe8, 
+	0xd2, 0x97, 0xd7, 0x17, 0xaf, 0x68, 0x28, 0xe8, 
+	0x91, 0x97, 0xd7, 0x17, 0xaf, 0x68, 0x28, 0xe8, 
+	0x91, 0x97, 0xd7, 0x17,
+	0x29, 0x63, 0xc3, 0x23, 0x8f, 0x68, 0x28, 0xe8 // Bytes de verificação
+};
+
+uint8_t msg5[4*MSG_WORD_COUNT] = {
+	0xcd, 0x4f, 0x46, 0xad, 0xe7, 0xb0, 0xb9, 0x52, 
+	0x00, 0x50, 0x46, 0xad, 0xd8, 0xb0, 0xb9, 0x52, 
+	0xf0, 0x4f, 0x46, 0xad, 0x95, 0xb0, 0xb9, 0x52, 
+	0xde, 0x4f, 0x46, 0xad, 0xe5, 0xb0, 0xb9, 0x52, 
+	0xfd, 0x4f, 0x46, 0xad, 0xde, 0xb0, 0xb9, 0x52, 
+	0xf9, 0x4f, 0x46, 0xad, 0xdc, 0xb0, 0xb9, 0x52, 
+	0xfe, 0x4f, 0x46, 0xad, 0xe9, 0xb0, 0xb9, 0x52, 
+	0xf0, 0x4f, 0x46, 0xad, 0xda, 0xb0, 0xb9, 0x52, 
+	0xf9, 0x4f, 0x46, 0xad, 0x95, 0xb0, 0xb9, 0x52, 
+	0xb8, 0x4f, 0x46, 0xad, 0x95, 0xb0, 0xb9, 0x52, 
+	0xcd, 0x4f, 0x46, 0xad, 0xe4, 0xb0, 0xb9, 0x52, 
+	0xfd, 0x4f, 0x46, 0xad, 0xe3, 0xb0, 0xb9, 0x52, 
+	0xab, 0x4f, 0x46, 0xad, 0xe9, 0xb0, 0xb9, 0x52, 
+	0xfa, 0x4f, 0x46, 0xad, 0x95, 0xb0, 0xb9, 0x52, 
+	0xdd, 0x4f, 0x46, 0xad, 0xea, 0xb0, 0xb9, 0x52, 
+	0xf9, 0x4f, 0x46, 0xad, 0x95, 0xb0, 0xb9, 0x52, 
+	0xab, 0x4f, 0x46, 0xad, 
+	0x50, 0x77, 0xe9, 0x03, 0x75, 0xb0, 0xb9, 0x52 // Bytes de verificação
+};
+
+// Ponteiro para a mensagem (para acessar como 32 bits)
+uint32_t* msg = (uint32_t*) MSG_TO_USE;
+
+// Buffer para guardar a mensagem decodificada
+uint32_t decoded[MSG_WORD_COUNT];
+
+// Número de chave atual
+uint32_t key;
+
+// Número de primo anterior para o segundo teste
+uint32_t previousPrime;
+
+// Arquivo de log das threads
+FILE* file;
+int ticksFactor = 10000;
 
 // Contexto da tela
 tContext sContext;
 
-// Mensagens codificadas
-uint32_t msg1[35] = {0x5a990100,0x6667feff,0x76990100,0x6867feff,0x7b990100,0x6167feff,0x27990100,0x2667feff,0x27990100,0x4c67feff,0x68990100,0x6767feff,0x7b990100,0x5a67feff,0x75990100,0x5a67feff,0x27990100,0x5f67feff,0x6c990100,0x5a67feff,0x7b990100,0x2767feff,0x27990100,0x4b67feff,0x76990100,0x5b67feff,0x27990100,0x4d67feff,0x6f990100,0x6867feff,0x74990100,0x5a67feff,0x7a990100,0x8a650200,0x8ebffeff};;
-uint32_t msg2[35] = {0x8820ae8b,0x33e05174,0xa820ae8b,0x2fe05174,0xbc20ae8b,0xdddf5174,0x8520ae8b,0x2fe05174,0xa820ae8b,0x1ee05174,0xb720ae8b,0x25e05174,0x6320ae8b,0x16e05174,0xb220ae8b,0x32e05174,0x6320ae8b,0x11e05174,0xa420ae8b,0x28e05174,0xa820ae8b,0xdddf5174,0x7020ae8b,0xdddf5174,0x9720ae8b,0x25e05174,0xa820ae8b,0xdddf5174,0x9320ae8b,0x2ce05174,0xaf20ae8b,0x26e05174,0xa620ae8b,0x643085d1,0xbedf5174};
-
-// Buffer para guardar a mensagem codificada
-uint32_t decoded[35];
-
 // ---String para debug---
-char string[4];
+char string[12];
 
-// ---Preenche o buffer com a string correspondente a um byte---
-void simpleByteToString(uint8_t value, char* buffer) {
-	buffer[3] = '\0';
-	buffer[2] = (value%10) + '0';
-	value /= 10;
-	buffer[1] = (value%10) + '0';
-	value /= 10;
-	buffer[0] = value + '0';
+// Preenche o buffer com uma string que representa o número fornecido
+static void intToString(int64_t value, char * pBuf, uint32_t len, uint32_t base, uint8_t zeros){
+	static const char* pAscii = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	bool n = false;
+	int pos = 0, d = 0;
+	int64_t tmpValue = value;
+
+	// the buffer must not be null and at least have a length of 2 to handle one
+	// digit and null-terminator
+	if (pBuf == NULL || len < 2)
+			return;
+
+	// a valid base cannot be less than 2 or larger than 36
+	// a base value of 2 means binary representation. A value of 1 would mean only zeros
+	// a base larger than 36 can only be used if a larger alphabet were used.
+	if (base < 2 || base > 36)
+			return;
+
+	if (zeros > len)
+		return;
+	
+	// negative value
+	if (value < 0)
+	{
+			tmpValue = -tmpValue;
+			value    = -value;
+			pBuf[pos++] = '-';
+			n = true;
+	}
+
+	// calculate the required length of the buffer
+	do {
+			pos++;
+			tmpValue /= base;
+	} while(tmpValue > 0);
+
+
+	if (pos > len)
+			// the len parameter is invalid.
+			return;
+
+	if(zeros > pos){
+		pBuf[zeros] = '\0';
+		do{
+			pBuf[d++ + (n ? 1 : 0)] = pAscii[0]; 
+		}
+		while(zeros > d + pos);
+	}
+	else
+		pBuf[pos] = '\0';
+
+	pos += d;
+	do {
+			pBuf[--pos] = pAscii[value % base];
+			value /= base;
+	} while(value > 0);
+}
+
+// Retorna true se um número é primo, e false se não.
+bool isPrime(unsigned int num) {
+	unsigned int i;
+	
+    if (num < 2) {
+        return false;
+    }
+
+    for (i = 2; i <= sqrt(num); i++) {
+        if (num % i == 0) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // Thread 1: gera uma chave
 void generateKey(void const* arg) {
-	uint8_t i;
-	for (i = 0; true; ++i) {
-		time = osKernelSysTick()/TICKS_FACTOR;
+	while (true) {
 		while (threadNum != 1) {
-			//osThreadYield();
-			osDelay(10000);
+			osThreadYield();
+		}
+		if (deuboa) {
+			// Finaliza thread
+			threadNum = 2;
+			return;
 		}
 		
-		//printf("Thread 1: iter %u\n", i);
-		simpleByteToString(i, string);
-		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
+		if (firstIter) {
+			key = (msg[0] & 0xFFFFFF00) - 1;
+			
+			// Verifica se houve "carry" ao somar a chave com o caractere.
+			// Nesse caso, voltar 0x100 no valor inicial de chave (devido ao carry)
+			if((MSG_TO_USE[1] + (key + 2)) & 0xFFFFFF00 != 0) {
+				key -= 0x100;
+			}
+			
+			firstIter = false;
+		}
+		
+		// Gera chave
+		key += 2;
+		
+		// ALTAMENTE IMPROVÁVEL, mas necessário para garantir que funciona para todos os casos
+		// Caso a chave inicial seja 1, é necessário testar a única chave par possível (2)
+		// Na próxima iteração, quando a chave for 4 (key += 2), voltar aos ímpares.
+		// É melhor fazer essa checagem do que incrementar a chave de 1 em 1 toda vez.
+		// (Fazer todo o processo para uma chave par diferente de 2 é desperdício).
+		if (key == 1) {
+			key = 2;
+		}
+		else if (key == 4) {
+			key = 3;
+		}
+		
+		// Vai para a decodificação
 		threadNum = 2;
-		//fprintf(ganttFile, "generateKey: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
 // Thread 2: faz a decodificação usando a chave, preenchendo o buffer "decoded"
 void decodeMsg(void const* arg) {
 	uint8_t i;
-	for (i = 0; true; ++i) {
-		time = osKernelSysTick()/TICKS_FACTOR;
+	
+	while (true) {
 		while (threadNum != 2) {
-			//osThreadYield();
-			osDelay(10000);
+			osThreadYield();
+		}
+		if (deuboa) {
+			threadNum = 3;
+			return;
 		}
 		
-		//printf("Thread 2: iter %u\n", i);
-		simpleByteToString(i, string);
-		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
+		for (i = 0; i < MSG_WORD_COUNT - 2; i++) {
+			if (i % 2 == 0) {
+				decoded[i] = msg[i] - key;
+			}
+			else {
+				decoded[i] = msg[i] + key;
+			}
+		}
+		
+		decoded[MSG_WORD_COUNT - 2] = msg[MSG_WORD_COUNT - 2] - key;
+		decoded[MSG_WORD_COUNT - 1] = msg[MSG_WORD_COUNT - 1] + key;
+		
+		// Vai para o primeiro teste
 		threadNum = 3;
-		//fprintf(ganttFile, "decodeMsg: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
 // Thread 3: faz o teste da penúltima word (divisão por dois)
 void testDivTwo(void const* arg) {
-	uint8_t i;
-	for (i = 0; true; ++i) {
-		time = osKernelSysTick()/TICKS_FACTOR;
+	while (true) {
 		while (threadNum != 3) {
-			//osThreadYield();
-			osDelay(10000);
+			osThreadYield();
+		}
+		if (deuboa) {
+			threadNum = 4;
+			return;
 		}
 		
-		//printf("Thread 3: iter %u\n", i);
-		simpleByteToString(i, string);
-		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
-		threadNum = 4;
-		//fprintf(ganttFile, "testDivTwo: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
+		if (decoded[MSG_WORD_COUNT - 2] == key/2) {
+			// Vai para o próximo teste
+			threadNum = 4;
+		}
+		else {
+			// Falhou, vai embora
+			threadNum = 6;
+		}
+		
 	}
 }
 
 // Thread 4: faz o teste da última word (quadrado da chave dividido pelo primo anterior)
 void testSquareDiv(void const* arg) {
-	uint8_t i;
-	for (i = 0; true; ++i) {
-		time = osKernelSysTick()/TICKS_FACTOR;
+	while (true) {
 		while (threadNum != 4) {
-			//osThreadYield();
-			osDelay(10000);
+			osThreadYield();
+		}
+		if (deuboa) {
+			threadNum = 5;
+			return;
 		}
 		
-		//printf("Thread 4: iter %u\n", i);
-		simpleByteToString(i, string);
-		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
-		threadNum = 5;
-		//fprintf(ganttFile, "testSquareDiv: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
+		previousPrime = key - 1;
+		while (!isPrime(previousPrime)) {
+			previousPrime--;
+		}
+		
+		if (decoded[MSG_WORD_COUNT - 1] == key * key / previousPrime) {
+			// Vai para o próximo teste
+			threadNum = 5;
+		}
+		else {
+			// Falhou, vai embora
+			threadNum = 6;
+		}
+		
 	}
 }
 
 // Thread 5: faz o teste de primalidade da chave
 void testPrime(void const* arg) {
-	uint8_t i;
-	for (i = 0; true; ++i) {
-		time = osKernelSysTick()/TICKS_FACTOR;
+	while (true) {
 		while (threadNum != 5) {
-			//osThreadYield();
-			osDelay(10000);
+			osThreadYield();
+		}
+		if (deuboa) {
+			return;
 		}
 		
-		//printf("Thread 5: iter %u\n", i);
-		simpleByteToString(i, string);
-		GrStringDraw(&sContext, (char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
+		if (isPrime(key)) {
+			// Deu boa
+			deuboa = true;
+		}
+		
+		// Mostra resultados
 		threadNum = 6;
-		//fprintf(ganttFile, "testPrime: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
 	}
 }
 
 // Thread 6: Mostra os resultados no console
 void printResult(void const* arg) {
-	uint8_t i;
-	for (i = 0; true; ++i) {
-		time = osKernelSysTick()/TICKS_FACTOR;
+	int i;
+	int j;
+	int pos;
+	
+	while (true) {
 		while (threadNum != 6) {
-			//osThreadYield();
-			osDelay(10000);
+			osThreadYield();
 		}
 		
-		//printf("Thread 6: iter %u\n", i);
-		simpleByteToString(i, string);
-		GrStringDraw(&sContext,(char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
-		threadNum = 1;
-		//fprintf(printResult, "testPrime: %i, %i\n", (int)time, (int)osKernelSysTick()/TICKS_FACTOR);
+		// Mostra a chave na tela
+		intToString(key, string, 10, 10, 0);
+		GrStringDraw(&sContext, (char*)string, -1, 0,  (sContext.psFont->ui8Height+2)*1, true);
+		
+		if (deuboa) {
+			GrStringDraw(&sContext, "(FOUND)", -1, (sContext.psFont->ui8MaxWidth)*6,  (sContext.psFont->ui8Height+2)*0, true);
+		}
+		else {
+			GrStringDraw(&sContext, "(FAIL) ", -1, (sContext.psFont->ui8MaxWidth)*6,  (sContext.psFont->ui8Height+2)*0, true);
+		}
+		
+		pos = 0;
+		for (i = 0; i < (MSG_WORD_COUNT - 2)/11; i++) {
+			for (j = 0; j < 11; j++, pos++) {
+				string[j] = (char) decoded[pos];
+			}
+			string[11] = '\0';
+			GrStringDraw(&sContext, (char*)string, -1, 0,  (sContext.psFont->ui8Height+2)*(i+3), true);
+		}
+		
+		if (deuboa) {
+			threadNum = 1;
+			osThreadTerminate(osThreadGetId());
+		}
+		else {
+			threadNum = 1;
+		}
+		
 	}
 }
 
@@ -173,17 +427,10 @@ void init_tela() {
 	GrContextForegroundSet(&sContext, ClrWhite);
 	GrContextBackgroundSet(&sContext, ClrBlack);
 	
-	//Escreve menu lateral:
-	GrStringDraw(&sContext,"---------------------", -1, 0, (sContext.psFont->ui8Height+2)*0, true);
-	GrStringDraw(&sContext,"Thread 1: iter ", -1, 0, (sContext.psFont->ui8Height+2)*1, true);
-	GrStringDraw(&sContext,"Thread 2: iter ", -1, 0, (sContext.psFont->ui8Height+2)*2, true);
-	GrStringDraw(&sContext,"Thread 3: iter ", -1, 0, (sContext.psFont->ui8Height+2)*3, true);
-	GrStringDraw(&sContext,"Thread 4: iter ", -1, 0, (sContext.psFont->ui8Height+2)*4, true);
-	GrStringDraw(&sContext,"Thread 5: iter ", -1, 0, (sContext.psFont->ui8Height+2)*5, true);
-	GrStringDraw(&sContext,"Thread 6: iter ", -1, 0, (sContext.psFont->ui8Height+2)*6, true);
-	GrStringDraw(&sContext,"---------------------", -1, 0, (sContext.psFont->ui8Height+2)*7, true);
-	GrStringDraw(&sContext,"---------------------", -1, 0, (sContext.psFont->ui8Height+2)*8, true);
-
+	//GrStringDraw(&sContext, "---------------------", -1, 0, (sContext.psFont->ui8Height+2)*0, true);
+	GrStringDraw(&sContext, "Chave:", -1, 0, (sContext.psFont->ui8Height+2)*0, true);
+	GrStringDraw(&sContext, "Msg:", -1, 0, (sContext.psFont->ui8Height+2)*2, true);
+	//GrStringDraw(&sContext,(char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
 }
 
 // Função main: apenas faz inicializações
@@ -207,6 +454,23 @@ int main(void) {
 	threadNum = 1;
 	
 	osKernelStart();
+	
+	// Abre o arquivo de log das threads
+//	printf("gantt\n");
+//	printf("    title A Gantt Diagram\n");
+//	printf("    dateFormat x\n");
+	
+//	file = fopen("gantt.txt", "w");
+//	if (file == NULL) {
+//		printf("Falha no fopen\n");
+//		//GrStringDraw(&sContext, "Falha no fopen-------", -1, 0, (sContext.psFont->ui8Height+2)*8, true);
+//	}
+//	else {
+//		fprintf(file, "gantt\n");
+//		fprintf(file, "    title A Gantt Diagram\n");
+//		fprintf(file, "    dateFormat x\n");
+//		fclose(file); // Fecho aqui apenas para testar, as threads ainda não escrevem no arquivo.
+//	}
 	
 	osDelay(osWaitForever);
 }
