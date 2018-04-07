@@ -224,6 +224,9 @@ bool isPrime(unsigned int num) {
 
 // Thread 1: gera uma chave
 void generateKey(void const* arg) {
+	uint32_t startKey;
+	bool wrongStartGuess = false;
+	
 	while (true) {
 		while (threadNum != 1) {
 			osThreadYield();
@@ -235,19 +238,28 @@ void generateKey(void const* arg) {
 		}
 		
 		if (firstIter) {
-			key = (msg[0] & 0xFFFFFF00) - 1;
-			
-			// Verifica se houve "carry" ao somar a chave com o caractere.
-			// Nesse caso, voltar 0x100 no valor inicial de chave (devido ao carry)
-			if((MSG_TO_USE[1] + (key + 2)) & 0xFFFFFF00 != 0) {
-				key -= 0x100;
-			}
+			key = (msg[0] & 0xFFFFFF00) - 1; // -1 para deixar ímpar (será feito key += 2 embaixo)
+			startKey = key + 2; // Armazena a primeira chave testada
 			
 			firstIter = false;
 		}
 		
 		// Gera chave
-		key += 2;
+		if (!wrongStartGuess) {
+			key += 2; // Tentativas do chute inicial (maioria das vezes).
+		}
+		else {
+			key -= 2; // Só entra aqui se ocorreu carry na codificação
+		}
+		
+		// Caso tenha ocorrido carry na codificação, o chute inicial não terá êxito.
+		// Isso pode ser detectado se a chave passar do chute + 0x100
+		// Caso isso ocorra, volta a chave para a primeira chave, e a partir daí,
+		// a thread passa a fazer key -= 2.
+		if (key >= (startKey + 0x100)) {
+			wrongStartGuess = true;
+			key = startKey - 2;
+		}
 		
 		// ALTAMENTE IMPROVÁVEL, mas necessário para garantir que funciona para todos os casos
 		// Caso a chave inicial seja 1, é necessário testar a única chave par possível (2)
