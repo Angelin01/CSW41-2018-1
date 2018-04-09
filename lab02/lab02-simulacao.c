@@ -9,12 +9,21 @@
 #include "cfaf128x128x16.h"
 
 /*
-	ESSE É O CÓDIGO-FONTE DA PLACA!
-	Caso queira fazer simulação, deve-se desabilitar o build para
-	este arquivo (lab02.c), e habilitar para o lab02-simulacao.c.
+	ESSE É O CÓDIGO-FONTE DE SIMULAÇÃO!
+	Contém leves alterações (em vez de mostrar no display, usa printf, etc.)
+	Caso queira rodar na placa, deve-se desabilitar o build para
+	este arquivo (lab02-simulacao.c), e habilitar para o lab02.c.
 	Lembre-se de alterar as configurações de target para utilizar
-	o simulador e não a placa.
+	a placa e não o simulador.
+	Deve-se também trocar o STDOUT para o ITM no Manage Runtime Environment.
 */
+
+/*
+	Altere a macro abaixo para gerar output de chaves/mensagens ou diagrama de Gantt.
+		false: gera output de chaves/mensagens no console.
+		true: gera output do diagrama de Gantt no console.
+*/
+#define GENERATE_GANTT true
 
 // *** Defina a mensagem desejada na macro MSG_TO_USE! ***
 
@@ -22,7 +31,7 @@
 #define MSG_TO_USE msg5
 
 // Tempo
-const int ticks_factor = 120000; // 120 MHz
+const int ticks_factor = 10000;
 
 // Número da próxima thread a executar
 int threadNum = 0;
@@ -237,6 +246,7 @@ bool isPrime(unsigned int num) {
 
 // Thread 1: gera uma chave
 void generateKey(void const* arg) {
+	uint32_t time;
 	uint32_t startKey;
 	bool wrongStartGuess = false;
 	
@@ -249,6 +259,8 @@ void generateKey(void const* arg) {
 			threadNum = 2;
 			return;
 		}
+		
+		time = osKernelSysTick()/ticks_factor;
 		
 		if (firstIter) {
 			key = (msg[0] & 0xFFFFFF00) - 1; // -1 para deixar ímpar (será feito key += 2 embaixo)
@@ -286,6 +298,10 @@ void generateKey(void const* arg) {
 			key = 3;
 		}
 		
+		if (GENERATE_GANTT) {
+			printf("    generateKey: %d, %d\n", (int) time, (int) osKernelSysTick()/ticks_factor);
+		}
+		
 		// Vai para a decodificação
 		threadNum = 2;
 	}
@@ -293,6 +309,7 @@ void generateKey(void const* arg) {
 
 // Thread 2: faz a decodificação usando a chave, preenchendo o buffer "decoded"
 void decodeMsg(void const* arg) {
+	uint32_t time;
 	uint8_t i;
 	
 	while (true) {
@@ -303,6 +320,8 @@ void decodeMsg(void const* arg) {
 			threadNum = 3;
 			return;
 		}
+		
+		time = osKernelSysTick()/ticks_factor;
 		
 		for (i = 0; i < MSG_WORD_COUNT - 2; i++) {
 			if (i % 2 == 0) {
@@ -316,6 +335,10 @@ void decodeMsg(void const* arg) {
 		decoded[MSG_WORD_COUNT - 2] = msg[MSG_WORD_COUNT - 2] - key;
 		decoded[MSG_WORD_COUNT - 1] = msg[MSG_WORD_COUNT - 1] + key;
 		
+		if (GENERATE_GANTT) {
+			printf("    decodeMsg: %d, %d\n", (int) time, (int) osKernelSysTick()/ticks_factor);
+		}
+		
 		// Vai para o primeiro teste
 		threadNum = 3;
 	}
@@ -323,6 +346,8 @@ void decodeMsg(void const* arg) {
 
 // Thread 3: faz o teste da penúltima word (divisão por dois)
 void testDivTwo(void const* arg) {
+	uint32_t time;
+	
 	while (true) {
 		while (threadNum != 3) {
 			osThreadYield();
@@ -331,6 +356,8 @@ void testDivTwo(void const* arg) {
 			threadNum = 4;
 			return;
 		}
+		
+		time = osKernelSysTick()/ticks_factor;
 		
 		if (decoded[MSG_WORD_COUNT - 2] == key/2) {
 			// Vai para o próximo teste
@@ -341,11 +368,16 @@ void testDivTwo(void const* arg) {
 			threadNum = 6;
 		}
 		
+		if (GENERATE_GANTT) {
+			printf("    testDivTwo: %d, %d\n", (int) time, (int) osKernelSysTick()/ticks_factor);
+		}
 	}
 }
 
 // Thread 4: faz o teste da última word (quadrado da chave dividido pelo primo anterior)
 void testSquareDiv(void const* arg) {
+	uint32_t time;
+	
 	while (true) {
 		while (threadNum != 4) {
 			osThreadYield();
@@ -354,6 +386,8 @@ void testSquareDiv(void const* arg) {
 			threadNum = 5;
 			return;
 		}
+		
+		time = osKernelSysTick()/ticks_factor;
 		
 		previousPrime = key - 1;
 		while (!isPrime(previousPrime)) {
@@ -369,11 +403,16 @@ void testSquareDiv(void const* arg) {
 			threadNum = 6;
 		}
 		
+		if (GENERATE_GANTT) {
+			printf("    testSquareDiv: %d, %d\n", (int) time, (int) osKernelSysTick()/ticks_factor);
+		}
 	}
 }
 
 // Thread 5: faz o teste de primalidade da chave
 void testPrime(void const* arg) {
+	uint32_t time;
+	
 	while (true) {
 		while (threadNum != 5) {
 			osThreadYield();
@@ -382,9 +421,15 @@ void testPrime(void const* arg) {
 			return;
 		}
 		
+		time = osKernelSysTick()/ticks_factor;
+		
 		if (isPrime(key)) {
 			// Deu boa
 			deuboa = true;
+		}
+		
+		if (GENERATE_GANTT) {
+			printf("    testPrime: %d, %d\n", (int) time, (int) osKernelSysTick()/ticks_factor);
 		}
 		
 		// Mostra resultados
@@ -398,40 +443,50 @@ void printResult(void const* arg) {
 	int j;
 	int pos;
 	
+	uint32_t time;
+	
 	while (true) {
 		while (threadNum != 6) {
 			osThreadYield();
 		}
 		
+		time = osKernelSysTick()/ticks_factor;
+		
 		// Mostra a chave na tela
-		intToString(key, string, 10, 10, 0);
-		GrStringDraw(&sContext, (char*)string, -1, 0,  (sContext.psFont->ui8Height+2)*1, true);
-		
-		if (deuboa) {
-			GrStringDraw(&sContext, "(FOUND)", -1, (sContext.psFont->ui8MaxWidth)*6,  (sContext.psFont->ui8Height+2)*0, true);
-		}
-		else {
-			GrStringDraw(&sContext, "(FAIL) ", -1, (sContext.psFont->ui8MaxWidth)*6,  (sContext.psFont->ui8Height+2)*0, true);
-		}
-		
-		pos = 0;
-		for (i = 0; i < (MSG_WORD_COUNT - 2)/11; i++) {
-			for (j = 0; j < 11; j++, pos++) {
-				string[j] = (char) decoded[pos];
+		if (!GENERATE_GANTT) {
+			intToString(key, string, 10, 10, 0);
+			printf("Chave");
+			if (deuboa) {
+				printf(" (FOUND): %s\n", string);
 			}
-			string[11] = '\0';
-			GrStringDraw(&sContext, (char*)string, -1, 0,  (sContext.psFont->ui8Height+2)*(i+3), true);
+			else {
+				printf(" (FAIL): %s\n", string);
+			}
+		
+			printf("Msg: ");
+			for (i = 0; i < (MSG_WORD_COUNT - 2); i++) {
+				printf("%c", (char) decoded[i]);
+			}
+			printf("\n\n");
 		}
 		
 		if (deuboa) {
-			intToString(osKernelSysTick()/ticks_factor, string, 10, 10, 0);
-			GrStringDraw(&sContext, (char*)string, -1, 0,  (sContext.psFont->ui8Height+2)*8, true);
-			GrStringDraw(&sContext, "milissegundos", -1, 0,  (sContext.psFont->ui8Height+2)*9, true);
+			if (GENERATE_GANTT) {
+				printf("    printResult: %d, %d\n", (int) time, (int) osKernelSysTick()/ticks_factor);
+			}
+			else {
+				intToString(osKernelSysTick()/ticks_factor, string, 10, 10, 0);
+				printf("Tempo total de execução: %s\n", string);
+			}
 			
 			threadNum = 1;
 			osThreadTerminate(osThreadGetId());
 		}
 		else {
+			if (GENERATE_GANTT) {
+				printf("    printResult: %d, %d\n", (int) time, (int) osKernelSysTick()/ticks_factor);
+			}
+			
 			threadNum = 1;
 		}
 		
@@ -446,30 +501,10 @@ osThreadDef(testSquareDiv, osPriorityNormal, 1, 0);
 osThreadDef(testPrime, osPriorityNormal, 1, 0);
 osThreadDef(printResult, osPriorityNormal, 1, 0);
 
-
-void init_tela() {
-	GrContextInit(&sContext, &g_sCfaf128x128x16);
-	
-	GrFlush(&sContext);
-	GrContextFontSet(&sContext, g_psFontFixed6x8);
-	
-	GrContextForegroundSet(&sContext, ClrWhite);
-	GrContextBackgroundSet(&sContext, ClrBlack);
-	
-	//GrStringDraw(&sContext, "---------------------", -1, 0, (sContext.psFont->ui8Height+2)*0, true);
-	GrStringDraw(&sContext, "Chave:", -1, 0, (sContext.psFont->ui8Height+2)*0, true);
-	GrStringDraw(&sContext, "Msg:", -1, 0, (sContext.psFont->ui8Height+2)*2, true);
-	//GrStringDraw(&sContext,(char*)string, -1, (sContext.psFont->ui8MaxWidth)*16,  (sContext.psFont->ui8Height+2)*threadNum, true);
-}
-
 // Função main: apenas faz inicializações
 int main(void) {
 	// Inicializa o kernel
 	osKernelInitialize();
-	
-	// Inicializa os recursos
-	cfaf128x128x16Init();
-	init_tela();
 	
 	// Cria as threads
 	osThreadCreate(osThread(generateKey), NULL);
@@ -483,6 +518,12 @@ int main(void) {
 	threadNum = 1;
 	
 	osKernelStart();
+	
+	if (GENERATE_GANTT) {
+		printf("gantt\n");
+		printf("    title Lab 02\n");
+		printf("    dateFormat x\n");
+	}
 	
 	osDelay(osWaitForever);
 }
