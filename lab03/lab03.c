@@ -63,6 +63,8 @@ const int16_t playerPosY = 84; // Posição vertical do jogador: 95 (terreno) - 11
 const int16_t boundsLeftX = 22; //16; // Limite esquerdo da pista
 const int16_t boundsRightX = 105; //111; // Limite direito da pista
 
+const int16_t maxPlayerVelRoad = 500; // Velocidade máxima do jogador na pista
+
 const uint32_t mainLoopDelayMs = 25; // Delay no loop principal
 
 // ===========================================================================
@@ -72,8 +74,15 @@ const uint32_t mainLoopDelayMs = 25; // Delay no loop principal
 int16_t playerVelX; // Velocidade horizontal do jogador
 int16_t playerPosX = playerInitialPosX; // Posição atual do jogador
 
+int16_t playerVelRoad = 0; // Velocidade do jogador na pista (para o odômetro)
+int16_t aceleracao = 0; // Aceleração do jogador (positiva ou negativa)
+
 uint16_t leituraJoyX; // Leitura X do joystick
+uint16_t leituraJoyY; // Leitura Y do joystick
 bool leituraBotao; // Leitura do botão do acelerador
+
+uint64_t odometro = 0; // Distância a mostrar no painel
+char stringOdometro[6];
 
 // ===========================================================================
 // Mutexes e semáforos
@@ -83,7 +92,7 @@ osMutexId idMutex;
 osMutexDef(mutex);
 
 // ===========================================================================
-// Funções de inicialização
+// Funções em geral
 // ===========================================================================
 
 void init_all() {
@@ -136,6 +145,57 @@ void init_tela() {
 	GrContextBackgroundSet(&sContext, ClrGreen);
 }
 
+static void intToString(int64_t value, char * pBuf, uint32_t len, uint32_t base, uint8_t zeros){
+	static const char* pAscii = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	bool n = false;
+	int pos = 0, d = 0;
+	int64_t tmpValue = value;
+
+	// the buffer must not be null and at least have a length of 2 to handle one
+	// digit and null-terminator
+	if (pBuf == NULL || len < 2) return;
+
+	// a valid base cannot be less than 2 or larger than 36
+	// a base value of 2 means binary representation. A value of 1 would mean only zeros
+	// a base larger than 36 can only be used if a larger alphabet were used.
+	if (base < 2 || base > 36) return;
+
+	if (zeros > len) return;
+	
+	// negative value
+	if (value < 0) {
+		tmpValue = -tmpValue;
+		value = -value;
+		pBuf[pos++] = '-';
+		n = true;
+	}
+
+	// calculate the required length of the buffer
+	do {
+		pos++;
+		tmpValue /= base;
+	} while(tmpValue > 0);
+
+	if (pos > len) return; // the len parameter is invalid.
+
+	if(zeros > pos) {
+		pBuf[zeros] = '\0';
+		do {
+			pBuf[d++ + (n ? 1 : 0)] = pAscii[0]; 
+		}
+		while(zeros > d + pos);
+	}
+	else {
+		pBuf[pos] = '\0';
+	}
+
+	pos += d;
+	do {
+		pBuf[--pos] = pAscii[value % base];
+		value /= base;
+	} while(value > 0);
+}
+
 // ===========================================================================
 // Threads
 // ===========================================================================
@@ -154,6 +214,7 @@ void entrada(void const* args) {
 		osSignalWait(0x1, osWaitForever);
 		
 		leituraJoyX = joy_read_x();
+		leituraJoyY = joy_read_y();
 		leituraBotao = button_read_s1();
 		
 		// Envia sinal para a próxima thread
@@ -174,6 +235,25 @@ void veiculoJogador(void const* args) {
 		playerPosX += playerVelX;
 		
 		// TODO: Aceleração
+		if (leituraBotao) {
+			aceleracao = 10;
+		}
+		else if (leituraJoyY/1350 - 1 == -1) {
+			aceleracao = -1;
+		}
+		else {
+			aceleracao = 0;
+		}
+		
+		playerVelRoad += aceleracao;
+		if (playerVelRoad < 0) {
+			playerVelRoad = 0;
+		}
+		else if (playerVelRoad > maxPlayerVelRoad) {
+			playerVelRoad = maxPlayerVelRoad;
+		}
+		
+		odometro += playerVelRoad;
 		
 		// Libera mutex
 		osMutexRelease(idMutex);
@@ -285,7 +365,23 @@ void saida(void const* args) {
 }
 
 void painelInstrumentos(void const* args) {
-	// TODO: tudo
+	while (true) {
+		// Aguarda sinal
+		osSignalWait(0x1, osWaitForever);
+		
+		// Aguarda mutex
+		osMutexWait(idMutex, osWaitForever);
+		
+		
+		
+		GrContextForegroundSet(&sContext, ClrBlack);
+		GrContextBackgroundSet(&sContext, ClrYellow);
+		intToString(odometro/10000, stringOdometro, 6, 10, 5);
+		GrStringDrawCentered(&sContext, stringOdometro, -1, 63, 104, true);
+		
+		// Libera mutex
+		osMutexRelease(idMutex);
+	}
 }
 
 // Define as threads
@@ -301,16 +397,23 @@ osThreadDef(painelInstrumentos, osPriorityNormal, 1, 0);
 // ===========================================================================
 
 osTimerId idTimerSaida;
+osTimerId idTimerPainelInstrumentos;
 
 void tHandleSaida(void const* args) {
 	osSignalSet(idSaida, 0x1);
 }
 
+void tHandlePainelInstrumentos(void const* args) {
+	osSignalSet(idPainelInstrumentos, 0x1);
+}
+
 // Define os timers
 osTimerDef(timerSaida, tHandleSaida);
+osTimerDef(timerPainelInstrumentos, tHandlePainelInstrumentos);
 
 // Tempo dos timers
 const uint32_t msTimerSaida = 50;
+const uint32_t msTimerPainelInstrumentos = 300;
 
 // ===========================================================================
 // Função main
@@ -330,10 +433,13 @@ int main (void) {
 	idVeiculoOutros = osThreadCreate(osThread(veiculoOutros), NULL);
 	idGerenciadorTrajeto = osThreadCreate(osThread(gerenciadorTrajeto), NULL);
 	idSaida = osThreadCreate(osThread(saida), NULL);
+	idPainelInstrumentos = osThreadCreate(osThread(painelInstrumentos), NULL);
 	
 	idTimerSaida = osTimerCreate(osTimer(timerSaida), osTimerPeriodic, NULL);
+	idTimerPainelInstrumentos = osTimerCreate(osTimer(timerPainelInstrumentos), osTimerPeriodic, NULL);
 	
 	osTimerStart(idTimerSaida, msTimerSaida);
+	osTimerStart(idTimerPainelInstrumentos, msTimerPainelInstrumentos);
 	
 	osKernelStart();
 	
