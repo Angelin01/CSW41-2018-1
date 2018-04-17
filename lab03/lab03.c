@@ -54,20 +54,33 @@ const tRectangle pointsRect = {40, 100, 86, 121};
 tContext sContext;
 
 // ===========================================================================
-// Variáveis globais
+// Constantes
 // ===========================================================================
 
 const int16_t playerInitialPosX = 52; // Posição horizontal do jogador: 64 (meio da pista) - 12 (metade da largura do carro)
 const int16_t playerPosY = 84; // Posição vertical do jogador: 95 (terreno) - 11 (altura do carro)
 
-int16_t playerVelX; // Velocidade horizontal do jogador
-int16_t playerPosX = playerInitialPosX; // Posição atual do jogador
-
 const int16_t boundsLeftX = 22; //16; // Limite esquerdo da pista
 const int16_t boundsRightX = 105; //111; // Limite direito da pista
 
+const uint32_t mainLoopDelayMs = 25; // Delay no loop principal
+
+// ===========================================================================
+// Variáveis globais
+// ===========================================================================
+
+int16_t playerVelX; // Velocidade horizontal do jogador
+int16_t playerPosX = playerInitialPosX; // Posição atual do jogador
+
 uint16_t leituraJoyX; // Leitura X do joystick
 bool leituraBotao; // Leitura do botão do acelerador
+
+// ===========================================================================
+// Mutexes e semáforos
+// ===========================================================================
+
+osMutexId idMutex;
+osMutexDef(mutex);
 
 // ===========================================================================
 // Funções de inicialização
@@ -153,11 +166,17 @@ void veiculoJogador(void const* args) {
 		// Aguarda sinal
 		osSignalWait(0x1, osWaitForever);
 		
+		// Aguarda mutex
+		osMutexWait(idMutex, osWaitForever);
+		
 		// Posicionamento lateral
 		playerVelX = leituraJoyX/1350 - 1;
 		playerPosX += playerVelX;
 		
 		// TODO: Aceleração
+		
+		// Libera mutex
+		osMutexRelease(idMutex);
 		
 		// Envia sinal para a próxima thread
 		osSignalSet(idVeiculoOutros, 0x1);
@@ -169,7 +188,13 @@ void veiculoOutros(void const* args) {
 		// Aguarda sinal
 		osSignalWait(0x1, osWaitForever);
 		
+		// Aguarda mutex
+		osMutexWait(idMutex, osWaitForever);
+		
 		// TODO: Outros veículos
+		
+		// Libera mutex
+		osMutexRelease(idMutex);
 		
 		// Envia sinal para a próxima thread
 		osSignalSet(idGerenciadorTrajeto, 0x1);
@@ -180,6 +205,9 @@ void gerenciadorTrajeto(void const* args) {
 	while (true) {
 		// Aguarda sinal
 		osSignalWait(0x1, osWaitForever);
+		
+		// Aguarda mutex
+		osMutexWait(idMutex, osWaitForever);
 		
 		// TODO: Muitas coisas:
 		//  - Curvas
@@ -200,10 +228,14 @@ void gerenciadorTrajeto(void const* args) {
 			}
 		}
 		
+		// Libera mutex
+		osMutexRelease(idMutex);
+		
+		// Delay no input
+		osDelay(mainLoopDelayMs);
+		
 		// Envia sinal para a próxima thread
-		// TODO: quando a saída estiver com timer, alterar as linhas abaixo
-		// Colocar delay e osSignalSet para a entrada.
-		osSignalSet(idSaida, 0x1);//osSignalSet(idEntrada, 0x1);
+		osSignalSet(idEntrada, 0x1);
 	}
 }
 
@@ -219,16 +251,17 @@ void saida(void const* args) {
 		// Aguarda sinal
 		osSignalWait(0x1, osWaitForever);
 		
-		// TODO: Colocar mutex e timer
+		// Aguarda mutex
+		osMutexWait(idMutex, osWaitForever);
 		
 		if (oldCarX != playerPosX) {
 			// Calcula o rastro gerado se o player se moveu
 			if (oldCarX < playerPosX) {
 				clearRect.i16XMin = oldCarX;
-				clearRect.i16XMax = oldCarX + playerVelX;
+				clearRect.i16XMax = playerPosX;
 			}
 			else {
-				clearRect.i16XMin = oldCarX + carWidth - playerVelX;
+				clearRect.i16XMin = playerPosX + carWidth;
 				clearRect.i16XMax = oldCarX + carWidth;
 			}
 			
@@ -246,8 +279,8 @@ void saida(void const* args) {
 			oldCarX = playerPosX;
 		}
 		
-		// TODO: quando estiver com o timer, retirar o osSignalSet abaixo.
-		osSignalSet(idEntrada, 0x1);
+		// Libera mutex
+		osMutexRelease(idMutex);
 	}
 }
 
@@ -264,6 +297,22 @@ osThreadDef(saida, osPriorityNormal, 1, 0);
 osThreadDef(painelInstrumentos, osPriorityNormal, 1, 0);
 
 // ===========================================================================
+// Timers
+// ===========================================================================
+
+osTimerId idTimerSaida;
+
+void tHandleSaida(void const* args) {
+	osSignalSet(idSaida, 0x1);
+}
+
+// Define os timers
+osTimerDef(timerSaida, tHandleSaida);
+
+// Tempo dos timers
+const uint32_t msTimerSaida = 50;
+
+// ===========================================================================
 // Função main
 // ===========================================================================
 
@@ -274,11 +323,17 @@ int main (void) {
 	init_all();
 	init_tela();
 	
+	idMutex = osMutexCreate(osMutex(mutex));
+	
 	idEntrada = osThreadCreate(osThread(entrada), NULL);
 	idVeiculoJogador = osThreadCreate(osThread(veiculoJogador), NULL);
 	idVeiculoOutros = osThreadCreate(osThread(veiculoOutros), NULL);
 	idGerenciadorTrajeto = osThreadCreate(osThread(gerenciadorTrajeto), NULL);
 	idSaida = osThreadCreate(osThread(saida), NULL);
+	
+	idTimerSaida = osTimerCreate(osTimer(timerSaida), osTimerPeriodic, NULL);
+	
+	osTimerStart(idTimerSaida, msTimerSaida);
 	
 	osKernelStart();
 	
