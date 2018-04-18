@@ -67,6 +67,15 @@ const int16_t maxPlayerVelRoad = 500; // Velocidade máxima do jogador na pista
 
 const uint32_t mainLoopDelayMs = 25; // Delay no loop principal
 
+const int32_t maxOffsetCurve = 32; // Máximo offset da curva a partir do centro
+const uint32_t curveChangeFactor = 50; // Frequência da alteração da curva (odometro/10000)
+
+typedef enum {
+	LEFT_CURVE,
+	STRAIGHT,
+	RIGHT_CURVE
+} TipoCurva; // Tipo da curva
+
 // ===========================================================================
 // Variáveis globais
 // ===========================================================================
@@ -82,7 +91,12 @@ uint16_t leituraJoyY; // Leitura Y do joystick
 bool leituraBotao; // Leitura do botão do acelerador
 
 uint64_t odometro = 0; // Distância a mostrar no painel
-char stringOdometro[6];
+char stringOdometro[6]; // Buffer para converter para string
+
+TipoCurva tipoCurva = STRAIGHT; // Tipo atual da curva
+int16_t offsetCurva = 0; // Offset atual da curva a partir do centro
+int16_t xLeftCurve[64]; // Pontos da curva esquerda (em função de y)
+int16_t xRightCurve[64]; // Pontos da curva direita (em função de y)
 
 // ===========================================================================
 // Mutexes e semáforos
@@ -124,8 +138,8 @@ void init_tela() {
 	// Mostra as linhas
 	GrContextForegroundSet(&sContext, ClrGray);
 	GrContextBackgroundSet(&sContext, ClrGreen);
-	GrLineDraw(&sContext, 63, 32, 15, 95);
-	GrLineDraw(&sContext, 64, 32, 112, 95);
+	//GrLineDraw(&sContext, 63, 32, 15, 95);
+	//GrLineDraw(&sContext, 64, 32, 112, 95);
 	
 	// Faz o desenho inicial do carro
 	GrContextForegroundSet(&sContext, ClrWhite);
@@ -196,6 +210,38 @@ static void intToString(int64_t value, char * pBuf, uint32_t len, uint32_t base,
 	} while(value > 0);
 }
 
+void generateRoad(int32_t larguraJogo, int32_t alturaJogo, int32_t offsetX, int32_t distBorda) {
+	int j;
+	int x = 0;
+	int y = 0;
+	
+	int xMedio;
+	int xStartLeft;
+	int xStartRight;
+	int divNorm;
+	
+	xMedio = larguraJogo/2;
+	
+	xStartLeft = distBorda;
+	xStartRight = larguraJogo - 1 - distBorda;
+	
+	divNorm = alturaJogo*alturaJogo*alturaJogo;
+	
+	for (j = alturaJogo - 1; j >= 0; --j) {
+		y = alturaJogo - j; // Converte o "y da tela" (j) para o "y matemático" (y)
+		
+		x = xStartLeft;
+		x += (y*(xMedio - xStartLeft))/alturaJogo; // Componente linear
+		x += (y*y*y*offsetX)/divNorm;              // Componente de ordem 3
+		xLeftCurve[j] = x;
+		
+		x = xStartRight;
+		x += (y*(xMedio - xStartRight))/alturaJogo; // Componente linear
+		x += (y*y*y*offsetX)/divNorm;               // Componente de ordem 3
+		xRightCurve[j] = x;
+    }
+}
+
 // ===========================================================================
 // Threads
 // ===========================================================================
@@ -253,8 +299,6 @@ void veiculoJogador(void const* args) {
 			playerVelRoad = maxPlayerVelRoad;
 		}
 		
-		odometro += playerVelRoad;
-		
 		// Libera mutex
 		osMutexRelease(idMutex);
 		
@@ -282,6 +326,8 @@ void veiculoOutros(void const* args) {
 }
 
 void gerenciadorTrajeto(void const* args) {
+	uint32_t contadorCurva = 1;
+	
 	while (true) {
 		// Aguarda sinal
 		osSignalWait(0x1, osWaitForever);
@@ -290,11 +336,47 @@ void gerenciadorTrajeto(void const* args) {
 		osMutexWait(idMutex, osWaitForever);
 		
 		// TODO: Muitas coisas:
-		//  - Curvas
 		//  - Condições de tempo
 		//  - Colisão com outros veículos
 		//  - Pontuação
 		//  - Quilometragem
+		
+		// Aumenta o odômetro do painel
+		odometro += playerVelRoad;
+		
+		// Troca o tipo da curva quando necessário
+		if (odometro/10000 > contadorCurva*curveChangeFactor) {
+			contadorCurva++;
+			tipoCurva = (tipoCurva + 1) % 3;
+		}
+		
+		// Computa a nova curva caso ela esteja em movimento
+		switch (tipoCurva) {
+			case STRAIGHT:
+				if (offsetCurva > 0) {
+					offsetCurva--;
+					generateRoad(128, 64, offsetCurva, 16);
+				}
+				else if (offsetCurva < 0) {
+					offsetCurva++;
+					generateRoad(128, 64, offsetCurva, 16);
+				}
+				break;
+			case LEFT_CURVE:
+				if (offsetCurva > (-1)*maxOffsetCurve) {
+					offsetCurva--;
+					generateRoad(128, 64, offsetCurva, 16);
+				}
+				break;
+			case RIGHT_CURVE:
+				if (offsetCurva < maxOffsetCurve) {
+					offsetCurva++;
+					generateRoad(128, 64, offsetCurva, 16);
+				}
+				break;
+			default:
+				break;
+		}
 		
 		// Player se moveu lateralmente
 		if (playerVelX != 0) {
@@ -320,9 +402,17 @@ void gerenciadorTrajeto(void const* args) {
 }
 
 void saida(void const* args) {
+	bool firstIter = true;
+	int16_t j;
+	
 	// Para limpar o rastro do carro
 	tRectangle clearRect;
 	int8_t oldCarX = playerInitialPosX;
+	
+	// Para limpar a curva anterior
+	int16_t oldXLeftCurve[64];
+	int16_t oldXRightCurve[64];
+	int16_t oldOffsetCurva;
 	
 	clearRect.i16YMin = playerPosY;
 	clearRect.i16YMax = playerPosY + carHeight;
@@ -333,6 +423,42 @@ void saida(void const* args) {
 		
 		// Aguarda mutex
 		osMutexWait(idMutex, osWaitForever);
+		
+		// Copia dados iniciais da curva e mostra, caso seja a primeira iteração
+		if (firstIter) {
+			firstIter = false;
+			
+			oldOffsetCurva = offsetCurva;
+			for (j = 0; j < 64; ++j) {
+				oldXLeftCurve[j] = xLeftCurve[j];
+				oldXRightCurve[j] = xRightCurve[j];
+			}
+			
+			GrContextForegroundSet(&sContext, ClrGray);
+			for (j = 63; j >= 0; --j) {
+				GrPixelDraw(&sContext, xLeftCurve[j], j+32);
+				GrPixelDraw(&sContext, xRightCurve[j], j+32);
+			}
+		}
+		
+		if (oldOffsetCurva != offsetCurva) {
+			oldOffsetCurva = offsetCurva;
+			for (j = 63; j >= 0; --j) {
+				// Apaga a curva anterior
+				GrContextForegroundSet(&sContext, ClrGreen);
+				GrPixelDraw(&sContext, oldXLeftCurve[j], j+32);
+				GrPixelDraw(&sContext, oldXRightCurve[j], j+32);
+				
+				// Mostra a nova curva
+				GrContextForegroundSet(&sContext, ClrGray);
+				GrPixelDraw(&sContext, xLeftCurve[j], j+32);
+				GrPixelDraw(&sContext, xRightCurve[j], j+32);
+				
+				// Altera o vetor antigo
+				oldXLeftCurve[j] = xLeftCurve[j];
+				oldXRightCurve[j] = xRightCurve[j];
+			}
+		}
 		
 		if (oldCarX != playerPosX) {
 			// Calcula o rastro gerado se o player se moveu
@@ -372,8 +498,6 @@ void painelInstrumentos(void const* args) {
 		// Aguarda mutex
 		osMutexWait(idMutex, osWaitForever);
 		
-		
-		
 		GrContextForegroundSet(&sContext, ClrBlack);
 		GrContextBackgroundSet(&sContext, ClrYellow);
 		intToString(odometro/10000, stringOdometro, 6, 10, 5);
@@ -412,7 +536,7 @@ osTimerDef(timerSaida, tHandleSaida);
 osTimerDef(timerPainelInstrumentos, tHandlePainelInstrumentos);
 
 // Tempo dos timers
-const uint32_t msTimerSaida = 50;
+const uint32_t msTimerSaida = 100;
 const uint32_t msTimerPainelInstrumentos = 300;
 
 // ===========================================================================
@@ -425,6 +549,8 @@ int main (void) {
 	// Inicialização
 	init_all();
 	init_tela();
+	
+	generateRoad(128, 64, offsetCurva, 16);
 	
 	idMutex = osMutexCreate(osMutex(mutex));
 	
