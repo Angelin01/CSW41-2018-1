@@ -57,18 +57,18 @@ tContext sContext;
 // Constantes
 // ===========================================================================
 
-const int16_t playerInitialPosX = 52; // Posição horizontal do jogador: 64 (meio da pista) - 12 (metade da largura do carro)
-const int16_t playerPosY = 84; // Posição vertical do jogador: 95 (terreno) - 11 (altura do carro)
+static const int16_t playerInitialPosX = 52; // Posição horizontal do jogador: 64 (meio da pista) - 12 (metade da largura do carro)
+static const int16_t playerPosY = 84; // Posição vertical do jogador: 95 (terreno) - 11 (altura do carro)
 
-const int16_t boundsLeftX = 22; //16; // Limite esquerdo da pista
-const int16_t boundsRightX = 105; //111; // Limite direito da pista
+static const int16_t boundsLeftX = 24; // Limite esquerdo da pista
+static const int16_t boundsRightX = 103; // Limite direito da pista
 
-const int16_t maxPlayerVelRoad = 500; // Velocidade máxima do jogador na pista
+static const int16_t maxPlayerVelRoad = 500; // Velocidade máxima do jogador na pista
 
-const uint32_t mainLoopDelayMs = 25; // Delay no loop principal
+static const uint32_t mainLoopDelayMs = 25; // Delay no loop principal
 
-const int32_t maxOffsetCurve = 32; // Máximo offset da curva a partir do centro
-const uint32_t curveChangeFactor = 50; // Frequência da alteração da curva (odometro/10000)
+static const int32_t maxOffsetCurve = 32; // Máximo offset da curva a partir do centro
+static const uint32_t curveChangeFactor = 50; // Frequência da alteração da curva (odometro/10000)
 
 typedef enum {
 	LEFT_CURVE,
@@ -239,7 +239,7 @@ void generateRoad(int32_t larguraJogo, int32_t alturaJogo, int32_t offsetX, int3
 		x += (y*(xMedio - xStartRight))/alturaJogo; // Componente linear
 		x += (y*y*y*offsetX)/divNorm;               // Componente de ordem 3
 		xRightCurve[j] = x;
-    }
+	}
 }
 
 // ===========================================================================
@@ -326,6 +326,10 @@ void veiculoOutros(void const* args) {
 }
 
 void gerenciadorTrajeto(void const* args) {
+	static const uint32_t moduloAtualizaCurva = 8;
+	static const int32_t fatorVel = 4;
+	
+	uint32_t iteracao = 0;
 	uint32_t contadorCurva = 1;
 	
 	while (true) {
@@ -339,7 +343,6 @@ void gerenciadorTrajeto(void const* args) {
 		//  - Condições de tempo
 		//  - Colisão com outros veículos
 		//  - Pontuação
-		//  - Quilometragem
 		
 		// Aumenta o odômetro do painel
 		odometro += playerVelRoad;
@@ -350,32 +353,54 @@ void gerenciadorTrajeto(void const* args) {
 			tipoCurva = (tipoCurva + 1) % 3;
 		}
 		
-		// Computa a nova curva caso ela esteja em movimento
-		switch (tipoCurva) {
-			case STRAIGHT:
-				if (offsetCurva > 0) {
-					offsetCurva--;
-					generateRoad(128, 64, offsetCurva, 16);
+		// Computa a nova curva caso ela ainda não esteja no ponto desejado
+		// Apenas atualiza a curva a cada "moduloAtualizaCurva" iterações
+		if (iteracao % moduloAtualizaCurva == 0) {
+			// Apenas recalcula a curva se a velocidade for maior que zero
+			if (playerVelRoad > 0) {
+				// Seleciona o tipo da curva
+				switch (tipoCurva) {
+				case STRAIGHT:
+					// Se a curva está para a direita, diminui o offset
+					if (offsetCurva > 0) {
+						// Altera o offset de acordo com a velocidade
+						offsetCurva -= 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
+						if (offsetCurva < 0) {
+							offsetCurva = 0; // Corrige se passar do ponto desejado
+						}
+						generateRoad(128, 64, offsetCurva, 16);
+					}
+					// Se a curva está para a esquerda, aumenta o offset
+					else if (offsetCurva < 0) {
+						offsetCurva += 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
+						if (offsetCurva > 0) {
+							offsetCurva = 0;
+						}
+						generateRoad(128, 64, offsetCurva, 16);
+					}
+					break;
+				case LEFT_CURVE:
+					if (offsetCurva > (-1)*maxOffsetCurve) {
+						offsetCurva -= 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
+						if (offsetCurva < (-1)*maxOffsetCurve) {
+							offsetCurva = (-1)*maxOffsetCurve;
+						}
+						generateRoad(128, 64, offsetCurva, 16);
+					}
+					break;
+				case RIGHT_CURVE:
+					if (offsetCurva < maxOffsetCurve) {
+						offsetCurva += 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
+						if (offsetCurva > maxOffsetCurve) {
+							offsetCurva = maxOffsetCurve;
+						}
+						generateRoad(128, 64, offsetCurva, 16);
+					}
+					break;
+				default:
+					break;
 				}
-				else if (offsetCurva < 0) {
-					offsetCurva++;
-					generateRoad(128, 64, offsetCurva, 16);
-				}
-				break;
-			case LEFT_CURVE:
-				if (offsetCurva > (-1)*maxOffsetCurve) {
-					offsetCurva--;
-					generateRoad(128, 64, offsetCurva, 16);
-				}
-				break;
-			case RIGHT_CURVE:
-				if (offsetCurva < maxOffsetCurve) {
-					offsetCurva++;
-					generateRoad(128, 64, offsetCurva, 16);
-				}
-				break;
-			default:
-				break;
+			}
 		}
 		
 		// Player se moveu lateralmente
@@ -389,6 +414,9 @@ void gerenciadorTrajeto(void const* args) {
 				playerPosX = boundsRightX - carWidth;
 			}
 		}
+		
+		// Incrementa a iteração
+		iteracao++;
 		
 		// Libera mutex
 		osMutexRelease(idMutex);
