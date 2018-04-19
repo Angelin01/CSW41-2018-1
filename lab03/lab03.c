@@ -7,6 +7,7 @@
 #include "cfaf128x128x16.h"
 #include "buttons.h"
 #include "joy.h"
+#include "buzzer.h"
 
 // ===========================================================================
 // Imagens
@@ -113,6 +114,8 @@ void init_all() {
 	cfaf128x128x16Init();
 	button_init();
 	joy_init();
+	buzzer_init();
+	buzzer_per_set(0x4000);
 }
 
 void init_tela() {
@@ -282,7 +285,7 @@ void veiculoJogador(void const* args) {
 		
 		// TODO: Aceleração
 		if (leituraBotao) {
-			aceleracao = 10;
+			aceleracao = 5;
 		}
 		else if (leituraJoyY/1350 - 1 == -1) {
 			aceleracao = -1;
@@ -451,6 +454,14 @@ void saida(void const* args) {
 		
 		// Aguarda mutex
 		osMutexWait(idMutex, osWaitForever);
+		
+		// Faz buzz se está acelerando
+		if (aceleracao > 0) {
+			buzzer_write(true);
+		}
+		else {
+			buzzer_write(false);
+		}
 		
 		// Copia dados iniciais da curva e mostra, caso seja a primeira iteração
 		if (firstIter) {
