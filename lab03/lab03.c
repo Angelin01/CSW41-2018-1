@@ -97,6 +97,9 @@ static const uint32_t mainLoopDelayMs = 25; // Delay no loop principal
 static const int32_t maxOffsetCurve = 32; // Máximo offset da curva a partir do centro
 static const uint32_t curveChangeFactor = 50; // Frequência da alteração da curva (odometro/10000)
 
+static const uint16_t maxBuzzerPeriod = 0x4000; // Período máximo do som do buzzer
+static const uint16_t minBuzzerPeriod = 0x1800; // Período mínimo do som do buzzer
+
 typedef enum {
 	LEFT_CURVE,
 	STRAIGHT,
@@ -134,6 +137,8 @@ int16_t xRightCurve[64]; // Pontos da curva direita (em função de y)
 Weather weather = DAY; // Condições de tempo atuais
 uint16_t numDia = 1; // Dia atual
 
+uint16_t buzzerPeriod = maxBuzzerPeriod; // Período atual do buzzer
+
 // ===========================================================================
 // Mutexes e semáforos
 // ===========================================================================
@@ -150,7 +155,7 @@ void init_all() {
 	button_init();
 	joy_init();
 	buzzer_init();
-	buzzer_per_set(0x4000);
+	buzzer_per_set(maxBuzzerPeriod);
 }
 
 void init_scenario() {
@@ -514,6 +519,11 @@ void saida(void const* args) {
 		
 		// Faz buzz se está acelerando
 		if (aceleracao > 0) {
+			buzzerPeriod -= 0x80;
+			if (buzzerPeriod < minBuzzerPeriod) {
+				buzzerPeriod = maxBuzzerPeriod;
+			}
+			buzzer_per_set(buzzerPeriod);
 			buzzer_write(true);
 		}
 		else {
