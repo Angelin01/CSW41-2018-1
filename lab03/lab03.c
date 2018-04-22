@@ -132,6 +132,7 @@ int16_t xLeftCurve[64]; // Pontos da curva esquerda (em função de y)
 int16_t xRightCurve[64]; // Pontos da curva direita (em função de y)
 
 Weather weather = DAY; // Condições de tempo atuais
+uint16_t numDia = 1; // Dia atual
 
 // ===========================================================================
 // Mutexes e semáforos
@@ -188,7 +189,7 @@ void init_tela() {
 	GrContextForegroundSet(&sContext, scoreFontColor);
 	GrContextBackgroundSet(&sContext, scoreFontBgColor);
 	GrStringDrawCentered(&sContext, "00000", -1, 63, 104, true);
-	GrStringDraw(&sContext, "0", -1, 48, 113, true);
+	GrStringDraw(&sContext, "1", -1, 48, 113, true);
 	GrStringDraw(&sContext, "000", -1, 60, 113, true);
 	
 	GrContextForegroundSet(&sContext, playerColor);
@@ -394,6 +395,9 @@ void gerenciadorTrajeto(void const* args) {
 		// Troca a condição climática quando necessário
 		if (iteracao != 0 && iteracao % moduloAtualizaWeather == 0) {
 			weather = (weather + 1) % 3;
+			if (weather == 0) {
+				++numDia;
+			}
 		}
 		
 		// Computa a nova curva caso ela ainda não esteja no ponto desejado
@@ -614,6 +618,8 @@ void saida(void const* args) {
 }
 
 void painelInstrumentos(void const* args) {
+	uint16_t oldNumDia = 1;
+	
 	while (true) {
 		// Aguarda sinal
 		osSignalWait(0x1, osWaitForever);
@@ -625,6 +631,12 @@ void painelInstrumentos(void const* args) {
 		GrContextBackgroundSet(&sContext, scoreFontBgColor);
 		intToString(odometro/10000, stringOdometro, 6, 10, 5);
 		GrStringDrawCentered(&sContext, stringOdometro, -1, 63, 104, true);
+		
+		if (oldNumDia != numDia) {
+			oldNumDia = numDia;
+			intToString(numDia, stringOdometro, 6, 10, 0);
+			GrStringDraw(&sContext, stringOdometro, 1, 48, 113, true);
+		}
 		
 		// Libera mutex
 		osMutexRelease(idMutex);
