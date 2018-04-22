@@ -364,6 +364,7 @@ void veiculoOutros(void const* args) {
 void gerenciadorTrajeto(void const* args) {
 	static const uint32_t moduloAtualizaCurva = 8;
 	static const uint32_t moduloAtualizaWeather = 10000;
+	static const uint32_t moduloCentrifuga = 32;
 	static const int32_t fatorVel = 4;
 	
 	uint32_t iteracao = 0;
@@ -445,16 +446,25 @@ void gerenciadorTrajeto(void const* args) {
 			}
 		}
 		
-		// Player se moveu lateralmente
-		if (playerVelX != 0) {
-			// Player bateu no lado esquerdo da pista
-			if (playerPosX < boundsLeftX) {
-				playerPosX = boundsLeftX;
+		// "Força centrífuga"
+		if (tipoCurva == LEFT_CURVE || tipoCurva == RIGHT_CURVE) {
+			if (iteracao % moduloCentrifuga == 0) {
+				if (tipoCurva == LEFT_CURVE) {
+					++playerPosX;
+				}
+				else if (tipoCurva == RIGHT_CURVE) {
+					--playerPosX;
+				}
 			}
-			// Player bateu no lado direito da pista
-			else if (playerPosX > boundsRightX - carWidth) {
-				playerPosX = boundsRightX - carWidth;
-			}
+		}
+		
+		// Player bateu no lado esquerdo da pista
+		if (playerPosX < boundsLeftX) {
+			playerPosX = boundsLeftX;
+		}
+		// Player bateu no lado direito da pista
+		else if (playerPosX > boundsRightX - carWidth) {
+			playerPosX = boundsRightX - carWidth;
 		}
 		
 		// Incrementa a iteração
