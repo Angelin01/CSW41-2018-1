@@ -54,6 +54,32 @@ const tRectangle pointsRect = {40, 100, 86, 121};
 // Contexto da tela
 tContext sContext;
 
+// Cores
+static const uint32_t playerColor = ClrLightGrey;
+static const uint32_t scoreBgColor = ClrRed;
+static const uint32_t scoreFontColor = ClrBlack;
+static const uint32_t scoreFontBgColor = ClrYellow;
+
+static const uint32_t daySkyColor = ClrBlue;
+static const uint32_t dayTerrainColor = ClrGreen;
+static const uint32_t dayMountainColor = ClrDarkKhaki;
+static const uint32_t dayRoadLineColor = ClrGray;
+
+static const uint32_t snowSkyColor = ClrLightBlue;
+static const uint32_t snowTerrainColor = ClrWhite;
+static const uint32_t snowMountainColor = ClrLightGrey;
+static const uint32_t snowRoadLineColor = ClrBlack;
+
+static const uint32_t nightSkyColor = ClrBlack;
+static const uint32_t nightTerrainColor = ClrBlack;
+static const uint32_t nightMountainColor = ClrBlack;
+static const uint32_t nightRoadLineColor = ClrWhite;
+
+uint32_t skyColor = daySkyColor;
+uint32_t terrainColor = dayTerrainColor;
+uint32_t mountainColor = dayMountainColor;
+uint32_t roadLineColor = dayRoadLineColor;
+
 // ===========================================================================
 // Constantes
 // ===========================================================================
@@ -77,6 +103,12 @@ typedef enum {
 	RIGHT_CURVE
 } TipoCurva; // Tipo da curva
 
+typedef enum {
+	DAY,
+	SNOW,
+	NIGHT
+} Weather; // Condições de tempo
+
 // ===========================================================================
 // Variáveis globais
 // ===========================================================================
@@ -99,6 +131,8 @@ int16_t offsetCurva = 0; // Offset atual da curva a partir do centro
 int16_t xLeftCurve[64]; // Pontos da curva esquerda (em função de y)
 int16_t xRightCurve[64]; // Pontos da curva direita (em função de y)
 
+Weather weather = DAY; // Condições de tempo atuais
+
 // ===========================================================================
 // Mutexes e semáforos
 // ===========================================================================
@@ -118,48 +152,47 @@ void init_all() {
 	buzzer_per_set(0x4000);
 }
 
+void init_scenario() {
+	// Mostra o céu
+	GrContextForegroundSet(&sContext, skyColor);
+	GrRectFill(&sContext, &skyRect);
+	
+	// Mostra o terreno
+	GrContextForegroundSet(&sContext, terrainColor);
+	GrRectFill(&sContext, &terrainRect);
+	
+	// Mostra as montanhas
+	GrContextForegroundSet(&sContext, mountainColor);
+	GrContextBackgroundSet(&sContext, skyColor);
+	GrImageDraw(&sContext, mountainImage, 0, skyRect.i16YMax - 5);
+	GrImageDraw(&sContext, mountainImage, 64, skyRect.i16YMax - 5);
+}
+
 void init_tela() {
 	GrContextInit(&sContext, &g_sCfaf128x128x16);
 	
 	GrFlush(&sContext);
 	GrContextFontSet(&sContext, g_psFontFixed6x8);
 	
-	// Mostra o céu
-	GrContextForegroundSet(&sContext, ClrBlue);
-	GrRectFill(&sContext, &skyRect);
-	
-	// Mostra o terreno
-	GrContextForegroundSet(&sContext, ClrGreen);
-	GrRectFill(&sContext, &terrainRect);
-	
-	// Mostra as montanhas
-	GrContextForegroundSet(&sContext, ClrDarkKhaki);
-	GrContextBackgroundSet(&sContext, ClrBlue);
-	GrImageDraw(&sContext, mountainImage, 0, skyRect.i16YMax - 5);
-	GrImageDraw(&sContext, mountainImage, 64, skyRect.i16YMax - 5);
-	
-	// Mostra as linhas
-	GrContextForegroundSet(&sContext, ClrGray);
-	GrContextBackgroundSet(&sContext, ClrGreen);
-	//GrLineDraw(&sContext, 63, 32, 15, 95);
-	//GrLineDraw(&sContext, 64, 32, 112, 95);
+	// Mostra o cenário inicial
+	init_scenario();
 	
 	// Faz o desenho inicial do carro
-	GrContextForegroundSet(&sContext, ClrWhite);
-	GrContextBackgroundSet(&sContext, ClrGreen);
+	GrContextForegroundSet(&sContext, playerColor);
+	GrContextBackgroundSet(&sContext, terrainColor);
 	GrImageDraw(&sContext, carImage, playerPosX, playerPosY);
 	
 	// Faz o desenho inicial do painel de instrumentos
-	GrContextForegroundSet(&sContext, ClrRed);
+	GrContextForegroundSet(&sContext, scoreBgColor);
 	GrRectFill(&sContext, &pointsRect);
-	GrContextForegroundSet(&sContext, ClrBlack);
-	GrContextBackgroundSet(&sContext, ClrYellow);
+	GrContextForegroundSet(&sContext, scoreFontColor);
+	GrContextBackgroundSet(&sContext, scoreFontBgColor);
 	GrStringDrawCentered(&sContext, "00000", -1, 63, 104, true);
 	GrStringDraw(&sContext, "0", -1, 48, 113, true);
 	GrStringDraw(&sContext, "000", -1, 60, 113, true);
 	
-	GrContextForegroundSet(&sContext, ClrWhite);
-	GrContextBackgroundSet(&sContext, ClrGreen);
+	GrContextForegroundSet(&sContext, playerColor);
+	GrContextBackgroundSet(&sContext, terrainColor);
 }
 
 static void intToString(int64_t value, char * pBuf, uint32_t len, uint32_t base, uint8_t zeros){
@@ -330,6 +363,7 @@ void veiculoOutros(void const* args) {
 
 void gerenciadorTrajeto(void const* args) {
 	static const uint32_t moduloAtualizaCurva = 8;
+	static const uint32_t moduloAtualizaWeather = 10000;
 	static const int32_t fatorVel = 4;
 	
 	uint32_t iteracao = 0;
@@ -354,6 +388,11 @@ void gerenciadorTrajeto(void const* args) {
 		if (odometro/10000 > contadorCurva*curveChangeFactor) {
 			contadorCurva++;
 			tipoCurva = (tipoCurva + 1) % 3;
+		}
+		
+		// Troca a condição climática quando necessário
+		if (iteracao != 0 && iteracao % moduloAtualizaWeather == 0) {
+			weather = (weather + 1) % 3;
 		}
 		
 		// Computa a nova curva caso ela ainda não esteja no ponto desejado
@@ -434,6 +473,7 @@ void gerenciadorTrajeto(void const* args) {
 
 void saida(void const* args) {
 	bool firstIter = true;
+	bool weatherChange = false;
 	int16_t j;
 	
 	// Para limpar o rastro do carro
@@ -444,6 +484,9 @@ void saida(void const* args) {
 	int16_t oldXLeftCurve[64];
 	int16_t oldXRightCurve[64];
 	int16_t oldOffsetCurva;
+	
+	// Para a mudança de condição de tempo
+	Weather oldWeather = DAY;
 	
 	clearRect.i16YMin = playerPosY;
 	clearRect.i16YMax = playerPosY + carHeight;
@@ -473,23 +516,52 @@ void saida(void const* args) {
 				oldXRightCurve[j] = xRightCurve[j];
 			}
 			
-			GrContextForegroundSet(&sContext, ClrGray);
+			GrContextForegroundSet(&sContext, roadLineColor);
 			for (j = 63; j >= 0; --j) {
 				GrPixelDraw(&sContext, xLeftCurve[j], j+32);
 				GrPixelDraw(&sContext, xRightCurve[j], j+32);
 			}
 		}
 		
-		if (oldOffsetCurva != offsetCurva) {
+		// Altera as cores de acordo com a condição de tempo
+		if (oldWeather != weather) {
+			oldWeather = weather;
+			
+			switch (weather) {
+			case DAY:
+				skyColor = daySkyColor;
+				terrainColor = dayTerrainColor;
+				mountainColor = dayMountainColor;
+				roadLineColor = dayRoadLineColor;
+				break;
+			case SNOW:
+				skyColor = snowSkyColor;
+				terrainColor = snowTerrainColor;
+				mountainColor = snowMountainColor;
+				roadLineColor = snowRoadLineColor;
+				break;
+			case NIGHT:
+				skyColor = nightSkyColor;
+				terrainColor = nightTerrainColor;
+				mountainColor = nightMountainColor;
+				roadLineColor = nightRoadLineColor;
+				break;
+			}
+			
+			init_scenario();
+			weatherChange = true;
+		}
+		
+		if (oldOffsetCurva != offsetCurva || weatherChange) {
 			oldOffsetCurva = offsetCurva;
 			for (j = 63; j >= 0; --j) {
 				// Apaga a curva anterior
-				GrContextForegroundSet(&sContext, ClrGreen);
+				GrContextForegroundSet(&sContext, terrainColor);
 				GrPixelDraw(&sContext, oldXLeftCurve[j], j+32);
 				GrPixelDraw(&sContext, oldXRightCurve[j], j+32);
 				
 				// Mostra a nova curva
-				GrContextForegroundSet(&sContext, ClrGray);
+				GrContextForegroundSet(&sContext, roadLineColor);
 				GrPixelDraw(&sContext, xLeftCurve[j], j+32);
 				GrPixelDraw(&sContext, xRightCurve[j], j+32);
 				
@@ -499,7 +571,7 @@ void saida(void const* args) {
 			}
 		}
 		
-		if (oldCarX != playerPosX) {
+		if (oldCarX != playerPosX || weatherChange) {
 			// Calcula o rastro gerado se o player se moveu
 			if (oldCarX < playerPosX) {
 				clearRect.i16XMin = oldCarX;
@@ -511,17 +583,19 @@ void saida(void const* args) {
 			}
 			
 			// Mostra o carro
-			GrContextForegroundSet(&sContext, ClrWhite);
-			GrContextBackgroundSet(&sContext, ClrGreen);
+			GrContextForegroundSet(&sContext, playerColor);
+			GrContextBackgroundSet(&sContext, terrainColor);
 			GrImageDraw(&sContext, carImage, playerPosX, playerPosY);
 			
 			// Apaga o rastro
-			GrContextForegroundSet(&sContext, ClrGreen);
+			GrContextForegroundSet(&sContext, terrainColor);
 			GrRectFill(&sContext, &clearRect);
-			GrContextForegroundSet(&sContext, ClrWhite);
+			GrContextForegroundSet(&sContext, playerColor);
 			
 			// Guarda a posição X dessa iteração para utilizar na próxima
 			oldCarX = playerPosX;
+			
+			weatherChange = false;
 		}
 		
 		// Libera mutex
@@ -537,8 +611,8 @@ void painelInstrumentos(void const* args) {
 		// Aguarda mutex
 		osMutexWait(idMutex, osWaitForever);
 		
-		GrContextForegroundSet(&sContext, ClrBlack);
-		GrContextBackgroundSet(&sContext, ClrYellow);
+		GrContextForegroundSet(&sContext, scoreFontColor);
+		GrContextBackgroundSet(&sContext, scoreFontBgColor);
 		intToString(odometro/10000, stringOdometro, 6, 10, 5);
 		GrStringDrawCentered(&sContext, stringOdometro, -1, 63, 104, true);
 		
