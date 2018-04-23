@@ -21,6 +21,7 @@ const uint8_t carImage[] = {
 	0x02, 0x1c, 0x7e, 0x38, 0x1f, 0xff, 0xf8, 0xe9, 0xe0, 0x9c, 0xba, 0xc7,
 	0xe3, 0xa2, 0xd4, 0xa2, 0x1c, 0x7e, 0x00, 0x07,
 };
+	
 
 const uint8_t carWidth = 24;
 const uint8_t carHeight = 11;
@@ -35,7 +36,7 @@ const uint8_t mountainImage[] = {
 };
 
 // ===========================================================================
-// Ret‚ngulos para desenhar
+// Ret√¢ngulos para desenhar
 // ===========================================================================
 
 const tRectangle skyRect = {
@@ -68,12 +69,12 @@ static const uint32_t dayRoadLineColor = ClrGray;
 static const uint32_t snowSkyColor = ClrLightBlue;
 static const uint32_t snowTerrainColor = ClrWhite;
 static const uint32_t snowMountainColor = ClrLightGrey;
-static const uint32_t snowRoadLineColor = ClrBlack;
+static const uint32_t snowRoadLineColor = ClrGray;
 
-static const uint32_t nightSkyColor = ClrBlack;
+static const uint32_t nightSkyColor = ClrGray;
 static const uint32_t nightTerrainColor = ClrBlack;
-static const uint32_t nightMountainColor = ClrBlack;
-static const uint32_t nightRoadLineColor = ClrWhite;
+static const uint32_t nightMountainColor = ClrLightGrey;
+static const uint32_t nightRoadLineColor = 0x00686868;
 
 uint32_t skyColor = daySkyColor;
 uint32_t terrainColor = dayTerrainColor;
@@ -84,21 +85,21 @@ uint32_t roadLineColor = dayRoadLineColor;
 // Constantes
 // ===========================================================================
 
-static const int16_t playerInitialPosX = 52; // PosiÁ„o horizontal do jogador: 64 (meio da pista) - 12 (metade da largura do carro)
-static const int16_t playerPosY = 84; // PosiÁ„o vertical do jogador: 95 (terreno) - 11 (altura do carro)
+static const int16_t playerInitialPosX = 52; // Posi√ß√£o horizontal do jogador: 64 (meio da pista) - 12 (metade da largura do carro)
+static const int16_t playerPosY = 84; // Posi√ß√£o vertical do jogador: 95 (terreno) - 11 (altura do carro)
 
 static const int16_t boundsLeftX = 24; // Limite esquerdo da pista
 static const int16_t boundsRightX = 103; // Limite direito da pista
 
-static const int16_t maxPlayerVelRoad = 500; // Velocidade m·xima do jogador na pista
+static const int16_t maxPlayerVelRoad = 500; // Velocidade m√°xima do jogador na pista
 
 static const uint32_t mainLoopDelayMs = 25; // Delay no loop principal
 
-static const int32_t maxOffsetCurve = 32; // M·ximo offset da curva a partir do centro
-static const uint32_t curveChangeFactor = 50; // FrequÍncia da alteraÁ„o da curva (odometro/10000)
+static const int32_t maxOffsetCurve = 32; // M√°ximo offset da curva a partir do centro
+static const uint32_t curveChangeFactor = 50; // Frequ√™ncia da altera√ß√£o da curva (odometro/10000)
 
-static const uint16_t maxBuzzerPeriod = 0x4000; // PerÌodo m·ximo do som do buzzer
-static const uint16_t minBuzzerPeriod = 0x1800; // PerÌodo mÌnimo do som do buzzer
+static const uint16_t maxBuzzerPeriod = 0x4000; // Per√≠odo m√°ximo do som do buzzer
+static const uint16_t minBuzzerPeriod = 0x1800; // Per√≠odo m√≠nimo do som do buzzer
 
 typedef enum {
 	LEFT_CURVE,
@@ -110,44 +111,44 @@ typedef enum {
 	DAY,
 	SNOW,
 	NIGHT
-} Weather; // CondiÁıes de tempo
+} Weather; // Condi√ß√µes de tempo
 
 // ===========================================================================
-// Vari·veis globais
+// Vari√°veis globais
 // ===========================================================================
 
 int16_t playerVelX; // Velocidade horizontal do jogador
-int16_t playerPosX = playerInitialPosX; // PosiÁ„o atual do jogador
+int16_t playerPosX = playerInitialPosX; // Posi√ß√£o atual do jogador
 
-int16_t playerVelRoad = 0; // Velocidade do jogador na pista (para o odÙmetro)
-int16_t aceleracao = 0; // AceleraÁ„o do jogador (positiva ou negativa)
+int16_t playerVelRoad = 0; // Velocidade do jogador na pista (para o od√¥metro)
+int16_t aceleracao = 0; // Acelera√ß√£o do jogador (positiva ou negativa)
 
 uint16_t leituraJoyX; // Leitura X do joystick
 uint16_t leituraJoyY; // Leitura Y do joystick
-bool leituraBotao; // Leitura do bot„o do acelerador
+bool leituraBotao; // Leitura do bot√£o do acelerador
 
-uint64_t odometro = 0; // Dist‚ncia a mostrar no painel
+uint64_t odometro = 0; // Dist√¢ncia a mostrar no painel
 char stringOdometro[6]; // Buffer para converter para string
 
 TipoCurva tipoCurva = STRAIGHT; // Tipo atual da curva
 int16_t offsetCurva = 0; // Offset atual da curva a partir do centro
-int16_t xLeftCurve[64]; // Pontos da curva esquerda (em funÁ„o de y)
-int16_t xRightCurve[64]; // Pontos da curva direita (em funÁ„o de y)
+int16_t xLeftCurve[64]; // Pontos da curva esquerda (em fun√ß√£o de y)
+int16_t xRightCurve[64]; // Pontos da curva direita (em fun√ß√£o de y)
 
-Weather weather = DAY; // CondiÁıes de tempo atuais
+Weather weather = DAY; // Condi√ß√µes de tempo atuais
 uint16_t numDia = 1; // Dia atual
 
-uint16_t buzzerPeriod = maxBuzzerPeriod; // PerÌodo atual do buzzer
+uint16_t buzzerPeriod = maxBuzzerPeriod; // Per√≠odo atual do buzzer
 
 // ===========================================================================
-// Mutexes e sem·foros
+// Mutexes e sem√°foros
 // ===========================================================================
 
 osMutexId idMutex;
 osMutexDef(mutex);
 
 // ===========================================================================
-// FunÁıes em geral
+// Fun√ß√µes em geral
 // ===========================================================================
 
 void init_all() {
@@ -159,7 +160,7 @@ void init_all() {
 }
 
 void init_scenario() {
-	// Mostra o cÈu
+	// Mostra o c√©u
 	GrContextForegroundSet(&sContext, skyColor);
 	GrRectFill(&sContext, &skyRect);
 	
@@ -180,7 +181,7 @@ void init_tela() {
 	GrFlush(&sContext);
 	GrContextFontSet(&sContext, g_psFontFixed6x8);
 	
-	// Mostra o cen·rio inicial
+	// Mostra o cen√°rio inicial
 	init_scenario();
 	
 	// Faz o desenho inicial do carro
@@ -270,7 +271,7 @@ void generateRoad(int32_t larguraJogo, int32_t alturaJogo, int32_t offsetX, int3
 	divNorm = alturaJogo*alturaJogo*alturaJogo;
 	
 	for (j = alturaJogo - 1; j >= 0; --j) {
-		y = alturaJogo - j; // Converte o "y da tela" (j) para o "y matem·tico" (y)
+		y = alturaJogo - j; // Converte o "y da tela" (j) para o "y matem√°tico" (y)
 		
 		x = xStartLeft;
 		x += (y*(xMedio - xStartLeft))/alturaJogo; // Componente linear
@@ -288,7 +289,7 @@ void generateRoad(int32_t larguraJogo, int32_t alturaJogo, int32_t offsetX, int3
 // Threads
 // ===========================================================================
 
-// IDs das threads como vari·veis globais
+// IDs das threads como vari√°veis globais
 osThreadId idEntrada;
 osThreadId idVeiculoJogador;
 osThreadId idVeiculoOutros;
@@ -305,7 +306,7 @@ void entrada(void const* args) {
 		leituraJoyY = joy_read_y();
 		leituraBotao = button_read_s1();
 		
-		// Envia sinal para a prÛxima thread
+		// Envia sinal para a pr√≥xima thread
 		osSignalSet(idVeiculoJogador, 0x1);
 	}
 }
@@ -322,7 +323,7 @@ void veiculoJogador(void const* args) {
 		playerVelX = leituraJoyX/1350 - 1;
 		playerPosX += playerVelX;
 		
-		// TODO: AceleraÁ„o
+		// TODO: Acelera√ß√£o
 		if (leituraBotao) {
 			aceleracao = 5;
 		}
@@ -344,7 +345,7 @@ void veiculoJogador(void const* args) {
 		// Libera mutex
 		osMutexRelease(idMutex);
 		
-		// Envia sinal para a prÛxima thread
+		// Envia sinal para a pr√≥xima thread
 		osSignalSet(idVeiculoOutros, 0x1);
 	}
 }
@@ -357,19 +358,19 @@ void veiculoOutros(void const* args) {
 		// Aguarda mutex
 		osMutexWait(idMutex, osWaitForever);
 		
-		// TODO: Outros veÌculos
+		// TODO: Outros ve√≠culos
 		
 		// Libera mutex
 		osMutexRelease(idMutex);
 		
-		// Envia sinal para a prÛxima thread
+		// Envia sinal para a pr√≥xima thread
 		osSignalSet(idGerenciadorTrajeto, 0x1);
 	}
 }
 
 void gerenciadorTrajeto(void const* args) {
 	static const uint32_t moduloAtualizaCurva = 8;
-	static const uint32_t moduloAtualizaWeather = 10000;
+	static const uint32_t moduloAtualizaWeather = 2000;
 	static const uint32_t moduloCentrifuga = 32;
 	static const int32_t fatorVel = 4;
 	
@@ -384,20 +385,20 @@ void gerenciadorTrajeto(void const* args) {
 		osMutexWait(idMutex, osWaitForever);
 		
 		// TODO: Muitas coisas:
-		//  - CondiÁıes de tempo
-		//  - Colis„o com outros veÌculos
-		//  - PontuaÁ„o
+		//  - Condi√ß√µes de tempo
+		//  - Colis√£o com outros ve√≠culos
+		//  - Pontua√ß√£o
 		
-		// Aumenta o odÙmetro do painel
+		// Aumenta o od√¥metro do painel
 		odometro += playerVelRoad;
 		
-		// Troca o tipo da curva quando necess·rio
+		// Troca o tipo da curva quando necess√°rio
 		if (odometro/10000 > contadorCurva*curveChangeFactor) {
 			contadorCurva++;
 			tipoCurva = (tipoCurva + 1) % 3;
 		}
 		
-		// Troca a condiÁ„o clim·tica quando necess·rio
+		// Troca a condi√ß√£o clim√°tica quando necess√°rio
 		if (iteracao != 0 && iteracao % moduloAtualizaWeather == 0) {
 			weather = (weather + 1) % 3;
 			if (weather == 0) {
@@ -405,15 +406,15 @@ void gerenciadorTrajeto(void const* args) {
 			}
 		}
 		
-		// Computa a nova curva caso ela ainda n„o esteja no ponto desejado
-		// Apenas atualiza a curva a cada "moduloAtualizaCurva" iteraÁıes
+		// Computa a nova curva caso ela ainda n√£o esteja no ponto desejado
+		// Apenas atualiza a curva a cada "moduloAtualizaCurva" itera√ß√µes
 		if (iteracao % moduloAtualizaCurva == 0) {
 			// Apenas recalcula a curva se a velocidade for maior que zero
 			if (playerVelRoad > 0) {
 				// Seleciona o tipo da curva
 				switch (tipoCurva) {
 				case STRAIGHT:
-					// Se a curva est· para a direita, diminui o offset
+					// Se a curva est√° para a direita, diminui o offset
 					if (offsetCurva > 0) {
 						// Altera o offset de acordo com a velocidade
 						offsetCurva -= 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
@@ -422,7 +423,7 @@ void gerenciadorTrajeto(void const* args) {
 						}
 						generateRoad(128, 64, offsetCurva, 16);
 					}
-					// Se a curva est· para a esquerda, aumenta o offset
+					// Se a curva est√° para a esquerda, aumenta o offset
 					else if (offsetCurva < 0) {
 						offsetCurva += 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
 						if (offsetCurva > 0) {
@@ -455,7 +456,7 @@ void gerenciadorTrajeto(void const* args) {
 			}
 		}
 		
-		// "ForÁa centrÌfuga"
+		// "For√ßa centr√≠fuga"
 		if (tipoCurva == LEFT_CURVE || tipoCurva == RIGHT_CURVE) {
 			if (iteracao % moduloCentrifuga == 0) {
 				if (tipoCurva == LEFT_CURVE) {
@@ -476,7 +477,7 @@ void gerenciadorTrajeto(void const* args) {
 			playerPosX = boundsRightX - carWidth;
 		}
 		
-		// Incrementa a iteraÁ„o
+		// Incrementa a itera√ß√£o
 		iteracao++;
 		
 		// Libera mutex
@@ -485,7 +486,7 @@ void gerenciadorTrajeto(void const* args) {
 		// Delay no input
 		osDelay(mainLoopDelayMs);
 		
-		// Envia sinal para a prÛxima thread
+		// Envia sinal para a pr√≥xima thread
 		osSignalSet(idEntrada, 0x1);
 	}
 }
@@ -504,7 +505,7 @@ void saida(void const* args) {
 	int16_t oldXRightCurve[64];
 	int16_t oldOffsetCurva;
 	
-	// Para a mudanÁa de condiÁ„o de tempo
+	// Para a mudan√ßa de condi√ß√£o de tempo
 	Weather oldWeather = DAY;
 	
 	clearRect.i16YMin = playerPosY;
@@ -517,7 +518,7 @@ void saida(void const* args) {
 		// Aguarda mutex
 		osMutexWait(idMutex, osWaitForever);
 		
-		// Faz buzz se est· acelerando
+		// Faz buzz se est√° acelerando
 		if (aceleracao > 0) {
 			buzzerPeriod -= 0x80;
 			if (buzzerPeriod < minBuzzerPeriod) {
@@ -530,7 +531,7 @@ void saida(void const* args) {
 			buzzer_write(false);
 		}
 		
-		// Copia dados iniciais da curva e mostra, caso seja a primeira iteraÁ„o
+		// Copia dados iniciais da curva e mostra, caso seja a primeira itera√ß√£o
 		if (firstIter) {
 			firstIter = false;
 			
@@ -540,14 +541,14 @@ void saida(void const* args) {
 				oldXRightCurve[j] = xRightCurve[j];
 			}
 			
-			GrContextForegroundSet(&sContext, roadLineColor);
 			for (j = 63; j >= 0; --j) {
+				GrContextForegroundSet(&sContext, j/16*0x181818 + roadLineColor);
 				GrPixelDraw(&sContext, xLeftCurve[j], j+32);
 				GrPixelDraw(&sContext, xRightCurve[j], j+32);
 			}
 		}
 		
-		// Altera as cores de acordo com a condiÁ„o de tempo
+		// Altera as cores de acordo com a condi√ß√£o de tempo
 		if (oldWeather != weather) {
 			oldWeather = weather;
 			
@@ -585,7 +586,7 @@ void saida(void const* args) {
 				GrPixelDraw(&sContext, oldXRightCurve[j], j+32);
 				
 				// Mostra a nova curva
-				GrContextForegroundSet(&sContext, roadLineColor);
+				GrContextForegroundSet(&sContext, j/16*0x181818 + roadLineColor);
 				GrPixelDraw(&sContext, xLeftCurve[j], j+32);
 				GrPixelDraw(&sContext, xRightCurve[j], j+32);
 				
@@ -611,12 +612,16 @@ void saida(void const* args) {
 			GrContextBackgroundSet(&sContext, terrainColor);
 			GrImageDraw(&sContext, carImage, playerPosX, playerPosY);
 			
+			// Oponente est√°tico tempor√°rio
+			GrContextForegroundSet(&sContext, ClrLightBlue);
+			GrImageDraw(&sContext, carImage, playerInitialPosX, playerPosY - 16);
+			
 			// Apaga o rastro
 			GrContextForegroundSet(&sContext, terrainColor);
 			GrRectFill(&sContext, &clearRect);
 			GrContextForegroundSet(&sContext, playerColor);
 			
-			// Guarda a posiÁ„o X dessa iteraÁ„o para utilizar na prÛxima
+			// Guarda a posi√ß√£o X dessa itera√ß√£o para utilizar na pr√≥xima
 			oldCarX = playerPosX;
 			
 			weatherChange = false;
@@ -685,13 +690,13 @@ const uint32_t msTimerSaida = 100;
 const uint32_t msTimerPainelInstrumentos = 300;
 
 // ===========================================================================
-// FunÁ„o main
+// Fun√ß√£o main
 // ===========================================================================
 
 int main (void) {
 	osKernelInitialize();
 	
-	// InicializaÁ„o
+	// Inicializa√ß√£o
 	init_all();
 	init_tela();
 	
