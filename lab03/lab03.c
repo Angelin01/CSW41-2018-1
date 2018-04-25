@@ -9,22 +9,14 @@
 #include "joy.h"
 #include "buzzer.h"
 
+#include "car.h"
+
+// TESTE
+#include "led.h"
+
 // ===========================================================================
 // Imagens
 // ===========================================================================
-
-const uint8_t carImage[] = {
-	IMAGE_FMT_1BPP_COMP,
-	24, 0,
-	11, 0,
-	
-	0x02, 0x1c, 0x7e, 0x38, 0x1f, 0xff, 0xf8, 0xe9, 0xe0, 0x9c, 0xba, 0xc7,
-	0xe3, 0xa2, 0xd4, 0xa2, 0x1c, 0x7e, 0x00, 0x07,
-};
-	
-
-const uint8_t carWidth = 24;
-const uint8_t carHeight = 11;
 
 const uint8_t mountainImage[] = {
 	IMAGE_FMT_1BPP_COMP,
@@ -140,6 +132,9 @@ uint16_t numDia = 1; // Dia atual
 
 uint16_t buzzerPeriod = maxBuzzerPeriod; // Período atual do buzzer
 
+Car oponenteTeste; // TESTE
+Car playerCar;
+
 // ===========================================================================
 // Mutexes e semáforos
 // ===========================================================================
@@ -157,9 +152,12 @@ void init_all() {
 	joy_init();
 	buzzer_init();
 	buzzer_per_set(maxBuzzerPeriod);
+	
+	// TESTE
+	led_init();
 }
 
-void init_scenario() {
+void show_scenario() {
 	// Mostra o céu
 	GrContextForegroundSet(&sContext, skyColor);
 	GrRectFill(&sContext, &skyRect);
@@ -182,12 +180,10 @@ void init_tela() {
 	GrContextFontSet(&sContext, g_psFontFixed6x8);
 	
 	// Mostra o cenário inicial
-	init_scenario();
+	show_scenario();
 	
 	// Faz o desenho inicial do carro
-	GrContextForegroundSet(&sContext, playerColor);
-	GrContextBackgroundSet(&sContext, terrainColor);
-	GrImageDraw(&sContext, carImage, playerPosX, playerPosY);
+	draw_car(&sContext, &playerCar, terrainColor, true);
 	
 	// Faz o desenho inicial do painel de instrumentos
 	GrContextForegroundSet(&sContext, scoreBgColor);
@@ -202,6 +198,7 @@ void init_tela() {
 	GrContextBackgroundSet(&sContext, terrainColor);
 }
 
+// Função de conversão de int para string (fornecida pelo professor)
 static void intToString(int64_t value, char * pBuf, uint32_t len, uint32_t base, uint8_t zeros){
 	static const char* pAscii = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 	bool n = false;
@@ -322,6 +319,8 @@ void veiculoJogador(void const* args) {
 		// Posicionamento lateral
 		playerVelX = leituraJoyX/1350 - 1;
 		playerPosX += playerVelX;
+		playerCar.hitbox.i16XMin += playerVelX;
+		playerCar.hitbox.i16XMax += playerVelX;
 		
 		// TODO: Aceleração
 		if (leituraBotao) {
@@ -351,6 +350,15 @@ void veiculoJogador(void const* args) {
 }
 
 void veiculoOutros(void const* args) {
+	// TESTE
+	uint16_t iteracao = 0;
+	
+	// TESTE
+	int16_t posy;
+	int16_t larguraPistaY;
+	int16_t carWidth;
+	int16_t carHeight;
+	
 	while (true) {
 		// Aguarda sinal
 		osSignalWait(0x1, osWaitForever);
@@ -359,6 +367,49 @@ void veiculoOutros(void const* args) {
 		osMutexWait(idMutex, osWaitForever);
 		
 		// TODO: Outros veículos
+		
+		// TESTE
+		if (iteracao % 20 == 0) {
+			posy = getCarPosY(&oponenteTeste);
+			posy += playerVelRoad / 100;
+			if (posy > 95) {
+				posy -= 64;
+			}
+			
+			// Altera a imagem
+			if (posy < 43) {
+				oponenteTeste.image = carTinyImage;
+				carWidth = carTinyWidth;
+				carHeight = carTinyHeight;
+			}
+			else if (posy < 54) {
+				oponenteTeste.image = carSmallImage;
+				carWidth = carSmallWidth;
+				carHeight = carSmallHeight;
+			}
+			else if (posy < 64) {
+				oponenteTeste.image = carAvgImage;
+				carWidth = carAvgWidth;
+				carHeight = carAvgHeight;
+			}
+			else if (posy < 74) {
+				oponenteTeste.image = carNormalImage;
+				carWidth = carNormalWidth;
+				carHeight = carNormalHeight;
+			}
+			else if (posy < 85) {
+				oponenteTeste.image = carBigImage;
+				carWidth = carBigWidth;
+				carHeight = carBigHeight;
+			}
+			
+			larguraPistaY = xRightCurve[posy-32] - xLeftCurve[posy-32];
+			setCarHitbox(&oponenteTeste,
+					 xLeftCurve[posy-32] + larguraPistaY/4*oponenteTeste.lane + 1 - carWidth/2, posy - carHeight/2,
+					 xLeftCurve[posy-32] + larguraPistaY/4*oponenteTeste.lane + 1 + carWidth/2, posy + carHeight/2);
+		}
+		
+		iteracao++;
 		
 		// Libera mutex
 		osMutexRelease(idMutex);
@@ -370,7 +421,7 @@ void veiculoOutros(void const* args) {
 
 void gerenciadorTrajeto(void const* args) {
 	static const uint32_t moduloAtualizaCurva = 8;
-	static const uint32_t moduloAtualizaWeather = 2000;
+	static const uint32_t moduloAtualizaWeather = 10000;
 	static const uint32_t moduloCentrifuga = 32;
 	static const int32_t fatorVel = 4;
 	
@@ -385,7 +436,7 @@ void gerenciadorTrajeto(void const* args) {
 		osMutexWait(idMutex, osWaitForever);
 		
 		// TODO: Muitas coisas:
-		//  - Condições de tempo
+		//  - "Turn" mais lento na neve (e também em velocidades pequenas)
 		//  - Colisão com outros veículos
 		//  - Pontuação
 		
@@ -458,12 +509,16 @@ void gerenciadorTrajeto(void const* args) {
 		
 		// "Força centrífuga"
 		if (tipoCurva == LEFT_CURVE || tipoCurva == RIGHT_CURVE) {
-			if (iteracao % moduloCentrifuga == 0) {
+			if (playerVelRoad != 0 && iteracao % moduloCentrifuga == 0) {
 				if (tipoCurva == LEFT_CURVE) {
 					++playerPosX;
+					++(playerCar.hitbox.i16XMin);
+					++(playerCar.hitbox.i16XMax);
 				}
 				else if (tipoCurva == RIGHT_CURVE) {
 					--playerPosX;
+					--(playerCar.hitbox.i16XMin);
+					--(playerCar.hitbox.i16XMax);
 				}
 			}
 		}
@@ -471,10 +526,14 @@ void gerenciadorTrajeto(void const* args) {
 		// Player bateu no lado esquerdo da pista
 		if (playerPosX < boundsLeftX) {
 			playerPosX = boundsLeftX;
+			playerCar.hitbox.i16XMin = boundsLeftX;
+			playerCar.hitbox.i16XMax = boundsLeftX + carBigWidth;
 		}
 		// Player bateu no lado direito da pista
-		else if (playerPosX > boundsRightX - carWidth) {
-			playerPosX = boundsRightX - carWidth;
+		else if (playerPosX > boundsRightX - carBigWidth) {
+			playerPosX = boundsRightX - carBigWidth;
+			playerCar.hitbox.i16XMin = boundsRightX - carBigWidth;
+			playerCar.hitbox.i16XMax = boundsRightX;
 		}
 		
 		// Incrementa a iteração
@@ -496,8 +555,7 @@ void saida(void const* args) {
 	bool weatherChange = false;
 	int16_t j;
 	
-	// Para limpar o rastro do carro
-	tRectangle clearRect;
+	// Para identificar se o carro se moveu depois do último draw
 	int8_t oldCarX = playerInitialPosX;
 	
 	// Para limpar a curva anterior
@@ -507,9 +565,6 @@ void saida(void const* args) {
 	
 	// Para a mudança de condição de tempo
 	Weather oldWeather = DAY;
-	
-	clearRect.i16YMin = playerPosY;
-	clearRect.i16YMax = playerPosY + carHeight;
 	
 	while (true) {
 		// Aguarda sinal
@@ -573,7 +628,7 @@ void saida(void const* args) {
 				break;
 			}
 			
-			init_scenario();
+			show_scenario();
 			weatherChange = true;
 		}
 		
@@ -596,35 +651,25 @@ void saida(void const* args) {
 			}
 		}
 		
-		if (oldCarX != playerPosX || weatherChange) {
-			// Calcula o rastro gerado se o player se moveu
-			if (oldCarX < playerPosX) {
-				clearRect.i16XMin = oldCarX;
-				clearRect.i16XMax = playerPosX;
-			}
-			else {
-				clearRect.i16XMin = playerPosX + carWidth;
-				clearRect.i16XMax = oldCarX + carWidth;
-			}
-			
-			// Mostra o carro
-			GrContextForegroundSet(&sContext, playerColor);
-			GrContextBackgroundSet(&sContext, terrainColor);
-			GrImageDraw(&sContext, carImage, playerPosX, playerPosY);
-			
-			// Oponente estático temporário
-			GrContextForegroundSet(&sContext, ClrLightBlue);
-			GrImageDraw(&sContext, carImage, playerInitialPosX, playerPosY - 16);
-			
-			// Apaga o rastro
-			GrContextForegroundSet(&sContext, terrainColor);
-			GrRectFill(&sContext, &clearRect);
-			GrContextForegroundSet(&sContext, playerColor);
+		// TESTE
+		draw_car(&sContext, &oponenteTeste, terrainColor, weatherChange);
+		
+		if (oldCarX != playerPosX || weatherChange) {			
+			// Mostra o carro e já apaga o rastro
+			draw_car(&sContext, &playerCar, terrainColor, true);
 			
 			// Guarda a posição X dessa iteração para utilizar na próxima
 			oldCarX = playerPosX;
 			
 			weatherChange = false;
+		}
+		
+		// TESTE
+		if (GrRectOverlapCheck(&(playerCar.hitbox), &(oponenteTeste.hitbox))) {
+			led_on(0);
+		}
+		else {
+			led_off(0);
 		}
 		
 		// Libera mutex
@@ -695,6 +740,25 @@ const uint32_t msTimerPainelInstrumentos = 300;
 
 int main (void) {
 	osKernelInitialize();
+	
+	setCarHitbox(&playerCar,
+	             playerInitialPosX, playerPosY,
+	             playerInitialPosX + carBigWidth, playerPosY + carBigHeight);
+	playerCar.firstDraw = true;
+	playerCar.player = true;
+	playerCar.lane = 0;
+	playerCar.color = playerColor;
+	playerCar.image = carBigImage;
+	
+	// TESTE
+	setCarHitbox(&oponenteTeste,
+	             playerInitialPosX, playerPosY - 16,
+	             playerInitialPosX + carBigWidth, playerPosY - 16 + carBigHeight);
+	oponenteTeste.firstDraw = true;
+	oponenteTeste.player = false;
+	oponenteTeste.lane = 1;
+	oponenteTeste.color = ClrLightBlue;
+	oponenteTeste.image = carBigImage;
 	
 	// Inicialização
 	init_all();
