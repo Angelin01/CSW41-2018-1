@@ -33,7 +33,7 @@ const uint8_t carAvgWidth = 10;
 const uint8_t carAvgHeight = 6;
 
 const uint8_t carSmallImage[] = {
-	IMAGE_FMT_1BPP_COMP,
+	IMAGE_FMT_1BPP_UNCOMP,
 	6, 0,
 	3, 0,
 	
@@ -43,11 +43,11 @@ const uint8_t carSmallWidth = 6;
 const uint8_t carSmallHeight = 3;
 
 const uint8_t carTinyImage[] = {
-	IMAGE_FMT_1BPP_COMP,
+	IMAGE_FMT_1BPP_UNCOMP,
 	4, 0,
 	1, 0,
 	
-	0x00,
+	0xf0,
 };
 const uint8_t carTinyWidth = 4;
 const uint8_t carTinyHeight = 1;
@@ -100,7 +100,8 @@ void draw_car(tContext* context, Car* car, uint32_t terrainColor, bool forceRedr
 			car->hitbox.i16YMax != car->clearRect.i16YMax ||
 			car->hitbox.i16YMin != car->clearRect.i16YMin) {
 			
-			// Troca a região de clipping temporariamente
+			// Troca a região de clipping temporariamente para não desenhar fora da estrada
+			context->sClipRegion.i16YMin = 36;
 			context->sClipRegion.i16YMax = 95;
 			
 			if (car->firstDraw) {
@@ -116,6 +117,7 @@ void draw_car(tContext* context, Car* car, uint32_t terrainColor, bool forceRedr
 			GrImageDraw(context, car->image, car->hitbox.i16XMin, car->hitbox.i16YMin);
 			
 			// Restaura a região de clipping anterior
+			context->sClipRegion.i16YMin = 0;
 			context->sClipRegion.i16YMax = 127;
 			
 			car->clearRect.i16XMax = car->hitbox.i16XMax;

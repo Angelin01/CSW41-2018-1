@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdlib.h>
 
 #include "cmsis_os.h"
 #include "TM4C129.h"
@@ -83,7 +84,7 @@ static const int16_t playerPosY = 84; // Posição vertical do jogador: 95 (terr
 static const int16_t boundsLeftX = 24; // Limite esquerdo da pista
 static const int16_t boundsRightX = 103; // Limite direito da pista
 
-static const int16_t maxPlayerVelRoad = 500; // Velocidade máxima do jogador na pista
+static const int16_t maxPlayerVelRoad = 800; // Velocidade máxima do jogador na pista
 
 static const uint32_t mainLoopDelayMs = 25; // Delay no loop principal
 
@@ -132,8 +133,13 @@ uint16_t numDia = 1; // Dia atual
 
 uint16_t buzzerPeriod = maxBuzzerPeriod; // Período atual do buzzer
 
-Car oponenteTeste; // TESTE
+Car oponenteCar[4];
 Car playerCar;
+
+bool gameRunning = false;
+
+bool colisaoIrDireita = false;
+bool colisaoIrEsquerda = false;
 
 // ===========================================================================
 // Mutexes e semáforos
@@ -155,6 +161,30 @@ void init_all() {
 	
 	// TESTE
 	led_init();
+}
+
+void init_cars() {
+	int i;
+	
+	setCarHitbox(&playerCar,
+	             playerInitialPosX, playerPosY,
+	             playerInitialPosX + carBigWidth, playerPosY + carBigHeight);
+	playerCar.firstDraw = true;
+	playerCar.player = true;
+	playerCar.lane = 0;
+	playerCar.color = playerColor;
+	playerCar.image = carBigImage;
+	
+	for (i = 0; i < 4; i++) {
+		setCarHitbox(&oponenteCar[i],
+					 playerInitialPosX, 0 - 50*i,
+					 playerInitialPosX + carBigWidth, 0 - 50*i + carTinyHeight);
+		oponenteCar[i].firstDraw = true;
+		oponenteCar[i].player = false;
+		oponenteCar[i].lane = rand()%3 + 1;
+		oponenteCar[i].color = i%2 == 0 ? ClrLightBlue : ClrOrange;
+		oponenteCar[i].image = carTinyImage;
+	}
 }
 
 void show_scenario() {
@@ -250,6 +280,7 @@ static void intToString(int64_t value, char * pBuf, uint32_t len, uint32_t base,
 	} while(value > 0);
 }
 
+// Calcula a posição de cada pixel da estrada (também faz a curva com o offset X)
 void generateRoad(int32_t larguraJogo, int32_t alturaJogo, int32_t offsetX, int32_t distBorda) {
 	int j;
 	int x = 0;
@@ -309,40 +340,65 @@ void entrada(void const* args) {
 }
 
 void veiculoJogador(void const* args) {
+	int32_t iteracao = 0;
+	
 	while (true) {
 		// Aguarda sinal
 		osSignalWait(0x1, osWaitForever);
 		
-		// Aguarda mutex
-		osMutexWait(idMutex, osWaitForever);
-		
-		// Posicionamento lateral
-		playerVelX = leituraJoyX/1350 - 1;
-		playerPosX += playerVelX;
-		playerCar.hitbox.i16XMin += playerVelX;
-		playerCar.hitbox.i16XMax += playerVelX;
-		
-		// TODO: Aceleração
-		if (leituraBotao) {
-			aceleracao = 5;
-		}
-		else if (leituraJoyY/1350 - 1 == -1) {
-			aceleracao = -1;
-		}
-		else {
-			aceleracao = 0;
+		// Espera o player apertar o acelerador para iniciar
+		if (!gameRunning && leituraBotao) {
+			gameRunning = true;
 		}
 		
-		playerVelRoad += aceleracao;
-		if (playerVelRoad < 0) {
-			playerVelRoad = 0;
+		if (gameRunning) {
+			// Aguarda mutex
+			osMutexWait(idMutex, osWaitForever);
+			
+			// Posicionamento lateral
+			if (iteracao % 5 == 0) {
+				if (colisaoIrDireita) {
+					playerVelX = 1;
+				}
+				else if (colisaoIrEsquerda) {
+					playerVelX = -1;
+				}
+				else {
+					playerVelX = (leituraJoyX/1350 - 1) * (4 * playerVelRoad/maxPlayerVelRoad + 1);
+				}
+				
+				playerPosX += playerVelX;
+				playerCar.hitbox.i16XMin += playerVelX;
+				playerCar.hitbox.i16XMax += playerVelX;
+			}
+			
+			// Aceleração
+			if (colisaoIrDireita || colisaoIrEsquerda) {
+				aceleracao = 0;
+			}
+			else if (leituraBotao) {
+				aceleracao = 2;
+			}
+			else if (leituraJoyY/1350 - 1 == -1) {
+				aceleracao = -1;
+			}
+			else {
+				aceleracao = 0;
+			}
+			
+			playerVelRoad += aceleracao;
+			if (playerVelRoad < 0) {
+				playerVelRoad = 0;
+			}
+			else if (playerVelRoad > maxPlayerVelRoad) {
+				playerVelRoad = maxPlayerVelRoad;
+			}
+			
+			iteracao++;
+			
+			// Libera mutex
+			osMutexRelease(idMutex);
 		}
-		else if (playerVelRoad > maxPlayerVelRoad) {
-			playerVelRoad = maxPlayerVelRoad;
-		}
-		
-		// Libera mutex
-		osMutexRelease(idMutex);
 		
 		// Envia sinal para a próxima thread
 		osSignalSet(idVeiculoOutros, 0x1);
@@ -350,69 +406,87 @@ void veiculoJogador(void const* args) {
 }
 
 void veiculoOutros(void const* args) {
-	// TESTE
-	uint16_t iteracao = 0;
+	// Constantes
+	static const int16_t limiarTiny = 50;//43;
+	static const int16_t limiarSmall = 60;//54;
+	static const int16_t limiarAvg = 70;//64;
+	static const int16_t limiarNormal = 80;//74;
 	
-	// TESTE
+	static const int16_t outrosVelRoad = 200;
+	
+	uint16_t iteracao = 0;
+	int i;
+	
 	int16_t posy;
 	int16_t larguraPistaY;
 	int16_t carWidth;
-	int16_t carHeight;
 	
 	while (true) {
 		// Aguarda sinal
 		osSignalWait(0x1, osWaitForever);
 		
-		// Aguarda mutex
-		osMutexWait(idMutex, osWaitForever);
-		
-		// TODO: Outros veículos
-		
-		// TESTE
-		if (iteracao % 20 == 0) {
-			posy = getCarPosY(&oponenteTeste);
-			posy += playerVelRoad / 100;
-			if (posy > 95) {
-				posy -= 64;
+		if (gameRunning) {
+			// Aguarda mutex
+			osMutexWait(idMutex, osWaitForever);
+			
+			// TODO: Outros veículos
+			
+			if (iteracao % 20 == 0) {
+				for (i = 0; i < 4; i++) {
+					// Altera a posição y do oponente
+					oponenteCar[i].hitbox.i16YMin += (playerVelRoad - outrosVelRoad) / 100;
+					oponenteCar[i].hitbox.i16YMax += (playerVelRoad - outrosVelRoad) / 100;
+					
+					// Se este passou de um determinado limiar
+					if (oponenteCar[i].hitbox.i16YMin > 127) {
+						// Volta ele para a frente e altera o rand da lane
+						oponenteCar[i].hitbox.i16YMin -= 280;
+						oponenteCar[i].hitbox.i16YMax -= 280;
+						oponenteCar[i].lane = rand()%3 + 1;
+					}
+					
+					// Altera a imagem e as dimensões da hitbox
+					if (oponenteCar[i].hitbox.i16YMin < limiarTiny) {
+						oponenteCar[i].image = carTinyImage;
+						carWidth = carTinyWidth;
+						oponenteCar[i].hitbox.i16YMax = oponenteCar[i].hitbox.i16YMin + carTinyHeight;
+					}
+					else if (oponenteCar[i].hitbox.i16YMin < limiarSmall) {
+						oponenteCar[i].image = carSmallImage;
+						carWidth = carSmallWidth;
+						oponenteCar[i].hitbox.i16YMax = oponenteCar[i].hitbox.i16YMin + carSmallHeight;
+					}
+					else if (oponenteCar[i].hitbox.i16YMin < limiarAvg) {
+						oponenteCar[i].image = carAvgImage;
+						carWidth = carAvgWidth;
+						oponenteCar[i].hitbox.i16YMax = oponenteCar[i].hitbox.i16YMin + carAvgHeight;
+					}
+					else if (oponenteCar[i].hitbox.i16YMin < limiarNormal) {
+						oponenteCar[i].image = carNormalImage;
+						carWidth = carNormalWidth;
+						oponenteCar[i].hitbox.i16YMax = oponenteCar[i].hitbox.i16YMin + carNormalHeight;
+					}
+					else {
+						oponenteCar[i].image = carBigImage;
+						carWidth = carBigWidth;
+						oponenteCar[i].hitbox.i16YMax = oponenteCar[i].hitbox.i16YMin + carBigHeight;
+					}
+					
+					// Se o carro estiver dentro da pista, acerta o valor da sua posição x.
+					posy = getCarPosY(&(oponenteCar[i]));
+					if (posy >= 32 && posy <= 95) {
+						larguraPistaY = xRightCurve[posy-32] - xLeftCurve[posy-32];
+						oponenteCar[i].hitbox.i16XMin = xLeftCurve[posy-32] + larguraPistaY/4*oponenteCar[i].lane + 1 - carWidth/2;
+						oponenteCar[i].hitbox.i16XMax = xLeftCurve[posy-32] + larguraPistaY/4*oponenteCar[i].lane + 1 + carWidth/2;
+					}
+				}
 			}
 			
-			// Altera a imagem
-			if (posy < 43) {
-				oponenteTeste.image = carTinyImage;
-				carWidth = carTinyWidth;
-				carHeight = carTinyHeight;
-			}
-			else if (posy < 54) {
-				oponenteTeste.image = carSmallImage;
-				carWidth = carSmallWidth;
-				carHeight = carSmallHeight;
-			}
-			else if (posy < 64) {
-				oponenteTeste.image = carAvgImage;
-				carWidth = carAvgWidth;
-				carHeight = carAvgHeight;
-			}
-			else if (posy < 74) {
-				oponenteTeste.image = carNormalImage;
-				carWidth = carNormalWidth;
-				carHeight = carNormalHeight;
-			}
-			else if (posy < 85) {
-				oponenteTeste.image = carBigImage;
-				carWidth = carBigWidth;
-				carHeight = carBigHeight;
-			}
+			iteracao++;
 			
-			larguraPistaY = xRightCurve[posy-32] - xLeftCurve[posy-32];
-			setCarHitbox(&oponenteTeste,
-					 xLeftCurve[posy-32] + larguraPistaY/4*oponenteTeste.lane + 1 - carWidth/2, posy - carHeight/2,
-					 xLeftCurve[posy-32] + larguraPistaY/4*oponenteTeste.lane + 1 + carWidth/2, posy + carHeight/2);
+			// Libera mutex
+			osMutexRelease(idMutex);
 		}
-		
-		iteracao++;
-		
-		// Libera mutex
-		osMutexRelease(idMutex);
 		
 		// Envia sinal para a próxima thread
 		osSignalSet(idGerenciadorTrajeto, 0x1);
@@ -428,119 +502,140 @@ void gerenciadorTrajeto(void const* args) {
 	uint32_t iteracao = 0;
 	uint32_t contadorCurva = 1;
 	
+	int32_t i;
+	
 	while (true) {
 		// Aguarda sinal
 		osSignalWait(0x1, osWaitForever);
 		
-		// Aguarda mutex
-		osMutexWait(idMutex, osWaitForever);
-		
-		// TODO: Muitas coisas:
-		//  - "Turn" mais lento na neve (e também em velocidades pequenas)
-		//  - Colisão com outros veículos
-		//  - Pontuação
-		
-		// Aumenta o odômetro do painel
-		odometro += playerVelRoad;
-		
-		// Troca o tipo da curva quando necessário
-		if (odometro/10000 > contadorCurva*curveChangeFactor) {
-			contadorCurva++;
-			tipoCurva = (tipoCurva + 1) % 3;
-		}
-		
-		// Troca a condição climática quando necessário
-		if (iteracao != 0 && iteracao % moduloAtualizaWeather == 0) {
-			weather = (weather + 1) % 3;
-			if (weather == 0) {
-				++numDia;
+		if (gameRunning) {
+			// Aguarda mutex
+			osMutexWait(idMutex, osWaitForever);
+			
+			// TODO: Muitas coisas:
+			//  - "Turn" mais lento na neve (e também em velocidades pequenas)
+			//  - Colisão com outros veículos
+			//  - Pontuação
+			
+			// Aumenta o odômetro do painel
+			odometro += playerVelRoad;
+			
+			// Troca o tipo da curva quando necessário
+			if (odometro/10000 > contadorCurva*curveChangeFactor) {
+				contadorCurva++;
+				tipoCurva = rand()%3;
 			}
-		}
-		
-		// Computa a nova curva caso ela ainda não esteja no ponto desejado
-		// Apenas atualiza a curva a cada "moduloAtualizaCurva" iterações
-		if (iteracao % moduloAtualizaCurva == 0) {
-			// Apenas recalcula a curva se a velocidade for maior que zero
-			if (playerVelRoad > 0) {
-				// Seleciona o tipo da curva
-				switch (tipoCurva) {
-				case STRAIGHT:
-					// Se a curva está para a direita, diminui o offset
-					if (offsetCurva > 0) {
-						// Altera o offset de acordo com a velocidade
-						offsetCurva -= 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
-						if (offsetCurva < 0) {
-							offsetCurva = 0; // Corrige se passar do ponto desejado
-						}
-						generateRoad(128, 64, offsetCurva, 16);
-					}
-					// Se a curva está para a esquerda, aumenta o offset
-					else if (offsetCurva < 0) {
-						offsetCurva += 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
+			
+			// Troca a condição climática quando necessário
+			if (iteracao != 0 && iteracao % moduloAtualizaWeather == 0) {
+				weather = (weather + 1) % 3;
+				if (weather == 0) {
+					++numDia;
+				}
+			}
+			
+			// Computa a nova curva caso ela ainda não esteja no ponto desejado
+			// Apenas atualiza a curva a cada "moduloAtualizaCurva" iterações
+			if (iteracao % moduloAtualizaCurva == 0) {
+				// Apenas recalcula a curva se a velocidade for maior que zero
+				if (playerVelRoad > 0) {
+					// Seleciona o tipo da curva
+					switch (tipoCurva) {
+					case STRAIGHT:
+						// Se a curva está para a direita, diminui o offset
 						if (offsetCurva > 0) {
-							offsetCurva = 0;
+							// Altera o offset de acordo com a velocidade
+							offsetCurva -= 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
+							if (offsetCurva < 0) {
+								offsetCurva = 0; // Corrige se passar do ponto desejado
+							}
+							generateRoad(128, 64, offsetCurva, 16);
 						}
-						generateRoad(128, 64, offsetCurva, 16);
-					}
-					break;
-				case LEFT_CURVE:
-					if (offsetCurva > (-1)*maxOffsetCurve) {
-						offsetCurva -= 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
-						if (offsetCurva < (-1)*maxOffsetCurve) {
-							offsetCurva = (-1)*maxOffsetCurve;
+						// Se a curva está para a esquerda, aumenta o offset
+						else if (offsetCurva < 0) {
+							offsetCurva += 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
+							if (offsetCurva > 0) {
+								offsetCurva = 0;
+							}
+							generateRoad(128, 64, offsetCurva, 16);
 						}
-						generateRoad(128, 64, offsetCurva, 16);
-					}
-					break;
-				case RIGHT_CURVE:
-					if (offsetCurva < maxOffsetCurve) {
-						offsetCurva += 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
-						if (offsetCurva > maxOffsetCurve) {
-							offsetCurva = maxOffsetCurve;
+						break;
+					case LEFT_CURVE:
+						if (offsetCurva > (-1)*maxOffsetCurve) {
+							offsetCurva -= 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
+							if (offsetCurva < (-1)*maxOffsetCurve) {
+								offsetCurva = (-1)*maxOffsetCurve;
+							}
+							generateRoad(128, 64, offsetCurva, 16);
 						}
-						generateRoad(128, 64, offsetCurva, 16);
+						break;
+					case RIGHT_CURVE:
+						if (offsetCurva < maxOffsetCurve) {
+							offsetCurva += 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
+							if (offsetCurva > maxOffsetCurve) {
+								offsetCurva = maxOffsetCurve;
+							}
+							generateRoad(128, 64, offsetCurva, 16);
+						}
+						break;
+					default:
+						break;
 					}
-					break;
-				default:
-					break;
 				}
 			}
-		}
-		
-		// "Força centrífuga"
-		if (tipoCurva == LEFT_CURVE || tipoCurva == RIGHT_CURVE) {
-			if (playerVelRoad != 0 && iteracao % moduloCentrifuga == 0) {
-				if (tipoCurva == LEFT_CURVE) {
-					++playerPosX;
-					++(playerCar.hitbox.i16XMin);
-					++(playerCar.hitbox.i16XMax);
-				}
-				else if (tipoCurva == RIGHT_CURVE) {
-					--playerPosX;
-					--(playerCar.hitbox.i16XMin);
-					--(playerCar.hitbox.i16XMax);
+			
+			// "Força centrífuga"
+			if (tipoCurva == LEFT_CURVE || tipoCurva == RIGHT_CURVE) {
+				if (playerVelRoad != 0 && iteracao % moduloCentrifuga == 0) {
+					if (tipoCurva == LEFT_CURVE) {
+						++playerPosX;
+						++(playerCar.hitbox.i16XMin);
+						++(playerCar.hitbox.i16XMax);
+					}
+					else if (tipoCurva == RIGHT_CURVE) {
+						--playerPosX;
+						--(playerCar.hitbox.i16XMin);
+						--(playerCar.hitbox.i16XMax);
+					}
 				}
 			}
+			
+			// Check de colisão
+			for (i = 0; i < 4; ++i) {
+				if (GrRectOverlapCheck(&(playerCar.hitbox), &(oponenteCar[i].hitbox))) {
+					if (!colisaoIrDireita && !colisaoIrEsquerda) {
+						playerVelRoad = 1;
+						if (getCarPosX(&playerCar) < 64) {
+							colisaoIrDireita = true;
+						}
+						else {
+							colisaoIrEsquerda = true;
+						}
+					}
+				}
+			}
+			
+			// Player bateu no lado esquerdo da pista
+			if (playerPosX < boundsLeftX) {
+				playerPosX = boundsLeftX;
+				playerCar.hitbox.i16XMin = boundsLeftX;
+				playerCar.hitbox.i16XMax = boundsLeftX + carBigWidth;
+				colisaoIrEsquerda = false;
+			}
+			// Player bateu no lado direito da pista
+			else if (playerPosX > boundsRightX - carBigWidth) {
+				playerPosX = boundsRightX - carBigWidth;
+				playerCar.hitbox.i16XMin = boundsRightX - carBigWidth;
+				playerCar.hitbox.i16XMax = boundsRightX;
+				colisaoIrDireita = false;
+			}
+			
+			// Incrementa a iteração
+			iteracao++;
+			
+			// Libera mutex
+			osMutexRelease(idMutex);
 		}
-		
-		// Player bateu no lado esquerdo da pista
-		if (playerPosX < boundsLeftX) {
-			playerPosX = boundsLeftX;
-			playerCar.hitbox.i16XMin = boundsLeftX;
-			playerCar.hitbox.i16XMax = boundsLeftX + carBigWidth;
-		}
-		// Player bateu no lado direito da pista
-		else if (playerPosX > boundsRightX - carBigWidth) {
-			playerPosX = boundsRightX - carBigWidth;
-			playerCar.hitbox.i16XMin = boundsRightX - carBigWidth;
-			playerCar.hitbox.i16XMax = boundsRightX;
-		}
-		
-		// Incrementa a iteração
-		iteracao++;
-		
-		// Libera mutex
-		osMutexRelease(idMutex);
 		
 		// Delay no input
 		osDelay(mainLoopDelayMs);
@@ -651,8 +746,9 @@ void saida(void const* args) {
 			}
 		}
 		
-		// TESTE
-		draw_car(&sContext, &oponenteTeste, terrainColor, weatherChange);
+		for (j = 0; j < 4; ++j) {
+			draw_car(&sContext, &(oponenteCar[j]), terrainColor, weatherChange);
+		}
 		
 		if (oldCarX != playerPosX || weatherChange) {			
 			// Mostra o carro e já apaga o rastro
@@ -662,14 +758,6 @@ void saida(void const* args) {
 			oldCarX = playerPosX;
 			
 			weatherChange = false;
-		}
-		
-		// TESTE
-		if (GrRectOverlapCheck(&(playerCar.hitbox), &(oponenteTeste.hitbox))) {
-			led_on(0);
-		}
-		else {
-			led_off(0);
 		}
 		
 		// Libera mutex
@@ -741,26 +829,8 @@ const uint32_t msTimerPainelInstrumentos = 300;
 int main (void) {
 	osKernelInitialize();
 	
-	setCarHitbox(&playerCar,
-	             playerInitialPosX, playerPosY,
-	             playerInitialPosX + carBigWidth, playerPosY + carBigHeight);
-	playerCar.firstDraw = true;
-	playerCar.player = true;
-	playerCar.lane = 0;
-	playerCar.color = playerColor;
-	playerCar.image = carBigImage;
-	
-	// TESTE
-	setCarHitbox(&oponenteTeste,
-	             playerInitialPosX, playerPosY - 16,
-	             playerInitialPosX + carBigWidth, playerPosY - 16 + carBigHeight);
-	oponenteTeste.firstDraw = true;
-	oponenteTeste.player = false;
-	oponenteTeste.lane = 1;
-	oponenteTeste.color = ClrLightBlue;
-	oponenteTeste.image = carBigImage;
-	
 	// Inicialização
+	init_cars();
 	init_all();
 	init_tela();
 	
