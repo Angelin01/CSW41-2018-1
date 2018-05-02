@@ -447,27 +447,27 @@ void veiculoOutros(void const* args) {
 					
 					// Altera a imagem e as dimensões da hitbox
 					if (oponenteCar[i].hitbox.i16YMin < limiarTiny) {
-						oponenteCar[i].image = carTinyImage;
+						oponenteCar[i].image = weather == NIGHT ? carTinyNightImage : carTinyImage;
 						carWidth = carTinyWidth;
 						oponenteCar[i].hitbox.i16YMax = oponenteCar[i].hitbox.i16YMin + carTinyHeight;
 					}
 					else if (oponenteCar[i].hitbox.i16YMin < limiarSmall) {
-						oponenteCar[i].image = carSmallImage;
+						oponenteCar[i].image = weather == NIGHT ? carSmallNightImage : carSmallImage;
 						carWidth = carSmallWidth;
 						oponenteCar[i].hitbox.i16YMax = oponenteCar[i].hitbox.i16YMin + carSmallHeight;
 					}
 					else if (oponenteCar[i].hitbox.i16YMin < limiarAvg) {
-						oponenteCar[i].image = carAvgImage;
+						oponenteCar[i].image = weather == NIGHT ? carAvgNightImage : carAvgImage;
 						carWidth = carAvgWidth;
 						oponenteCar[i].hitbox.i16YMax = oponenteCar[i].hitbox.i16YMin + carAvgHeight;
 					}
 					else if (oponenteCar[i].hitbox.i16YMin < limiarNormal) {
-						oponenteCar[i].image = carNormalImage;
+						oponenteCar[i].image = weather == NIGHT ? carNormalNightImage : carNormalImage;
 						carWidth = carNormalWidth;
 						oponenteCar[i].hitbox.i16YMax = oponenteCar[i].hitbox.i16YMin + carNormalHeight;
 					}
 					else {
-						oponenteCar[i].image = carBigImage;
+						oponenteCar[i].image = weather == NIGHT ? carBigNightImage : carBigImage;
 						carWidth = carBigWidth;
 						oponenteCar[i].hitbox.i16YMax = oponenteCar[i].hitbox.i16YMin + carBigHeight;
 					}
