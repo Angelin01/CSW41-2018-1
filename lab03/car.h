@@ -20,22 +20,27 @@ typedef struct Car {
 } Car;
 
 extern const uint8_t carBigImage[];
+extern const uint8_t carBigNightImage[];
 extern const uint8_t carBigWidth;
 extern const uint8_t carBigHeight;
 
 extern const uint8_t carNormalImage[];
+extern const uint8_t carNormalNightImage[];
 extern const uint8_t carNormalWidth;
 extern const uint8_t carNormalHeight;
 
 extern const uint8_t carAvgImage[];
+extern const uint8_t carAvgNightImage[];
 extern const uint8_t carAvgWidth;
 extern const uint8_t carAvgHeight;
 
 extern const uint8_t carSmallImage[];
+extern const uint8_t carSmallNightImage[];
 extern const uint8_t carSmallWidth;
 extern const uint8_t carSmallHeight;
 
 extern const uint8_t carTinyImage[];
+extern const uint8_t carTinyNightImage[];
 extern const uint8_t carTinyWidth;
 extern const uint8_t carTinyHeight;
 
