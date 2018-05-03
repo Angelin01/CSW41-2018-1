@@ -12,9 +12,6 @@
 
 #include "car.h"
 
-// TESTE
-#include "led.h"
-
 // ===========================================================================
 // Imagens
 // ===========================================================================
@@ -84,6 +81,7 @@ static const int16_t playerPosY = 84; // Posição vertical do jogador: 95 (terr
 static const int16_t boundsLeftX = 24; // Limite esquerdo da pista
 static const int16_t boundsRightX = 103; // Limite direito da pista
 
+static const int16_t minPlayerVelRoad = 25;  // Velocidade mínima do jogador na pista (após batida/freio)
 static const int16_t maxPlayerVelRoad = 800; // Velocidade máxima do jogador na pista
 
 static const uint32_t mainLoopDelayMs = 25; // Delay no loop principal
@@ -93,6 +91,8 @@ static const uint32_t curveChangeFactor = 50; // Frequência da alteração da c
 
 static const uint16_t maxBuzzerPeriod = 0x4000; // Período máximo do som do buzzer
 static const uint16_t minBuzzerPeriod = 0x1800; // Período mínimo do som do buzzer
+
+static const bool enableBumpRoad = true; // Habilita o "bump" ao bater nas bordas da pista
 
 typedef enum {
 	LEFT_CURVE,
@@ -142,6 +142,8 @@ bool gameRunning = false;
 bool colisaoIrDireita = false;
 bool colisaoIrEsquerda = false;
 
+int8_t bateuLateral = 0;
+
 // ===========================================================================
 // Mutexes e semáforos
 // ===========================================================================
@@ -159,9 +161,6 @@ void init_all() {
 	joy_init();
 	buzzer_init();
 	buzzer_per_set(maxBuzzerPeriod);
-	
-	// TESTE
-	led_init();
 }
 
 void init_cars() {
@@ -360,10 +359,10 @@ void veiculoJogador(void const* args) {
 			
 			// Posicionamento lateral
 			if (iteracao % 5 == 0) {
-				if (colisaoIrDireita) {
+				if (colisaoIrDireita || bateuLateral > 0) {
 					playerVelX = 1;
 				}
-				else if (colisaoIrEsquerda) {
+				else if (colisaoIrEsquerda || bateuLateral < 0) {
 					playerVelX = -1;
 				}
 				else {
@@ -378,10 +377,14 @@ void veiculoJogador(void const* args) {
 				playerPosX += playerVelX;
 				playerCar.hitbox.i16XMin += playerVelX;
 				playerCar.hitbox.i16XMax += playerVelX;
+				
+				if (bateuLateral != 0) {
+					bateuLateral -= playerVelX;
+				}
 			}
 			
 			// Aceleração
-			if (colisaoIrDireita || colisaoIrEsquerda) {
+			if (colisaoIrDireita || colisaoIrEsquerda || bateuLateral != 0) {
 				aceleracao = 0;
 			}
 			else if (leituraBotao) {
@@ -395,8 +398,8 @@ void veiculoJogador(void const* args) {
 			}
 			
 			playerVelRoad += aceleracao;
-			if (playerVelRoad < 0) {
-				playerVelRoad = 0;
+			if (playerVelRoad < minPlayerVelRoad) {
+				playerVelRoad = minPlayerVelRoad;
 			}
 			else if (playerVelRoad > maxPlayerVelRoad) {
 				playerVelRoad = maxPlayerVelRoad;
@@ -420,7 +423,7 @@ void veiculoOutros(void const* args) {
 	static const int16_t limiarAvg = 70;//64;
 	static const int16_t limiarNormal = 96;//74;
 	
-	static const int16_t outrosVelRoad = 200;
+	static const int16_t outrosVelRoad = 300;//200;
 	
 	uint16_t iteracao = 0;
 	int i;
@@ -436,8 +439,6 @@ void veiculoOutros(void const* args) {
 		if (gameRunning) {
 			// Aguarda mutex
 			osMutexWait(idMutex, osWaitForever);
-			
-			// TODO: Outros veículos
 			
 			if (iteracao % 20 == 0) {
 				for (i = 0; i < 4; i++) {
@@ -612,7 +613,7 @@ void gerenciadorTrajeto(void const* args) {
 			for (i = 0; i < 4; ++i) {
 				if (GrRectOverlapCheck(&(playerCar.hitbox), &(oponenteCar[i].hitbox))) {
 					if (!colisaoIrDireita && !colisaoIrEsquerda) {
-						playerVelRoad = 1;
+						playerVelRoad = minPlayerVelRoad;
 						if (getCarPosX(&playerCar) < 64) {
 							colisaoIrDireita = true;
 						}
@@ -634,6 +635,15 @@ void gerenciadorTrajeto(void const* args) {
 				playerCar.hitbox.i16XMin = boundsLeftX;
 				playerCar.hitbox.i16XMax = boundsLeftX + carBigWidth;
 				colisaoIrEsquerda = false;
+				
+				// Reduz a velocidade do carro e dá um "bump" para o lado
+				if (enableBumpRoad) {
+					bateuLateral = 2;
+					playerVelRoad -= 10;
+					if (playerVelRoad < minPlayerVelRoad) {
+						playerVelRoad = minPlayerVelRoad;
+					}
+				}
 			}
 			// Player bateu no lado direito da pista
 			else if (playerPosX > boundsRightX - carBigWidth) {
@@ -641,6 +651,15 @@ void gerenciadorTrajeto(void const* args) {
 				playerCar.hitbox.i16XMin = boundsRightX - carBigWidth;
 				playerCar.hitbox.i16XMax = boundsRightX;
 				colisaoIrDireita = false;
+				
+				// Reduz a velocidade do carro e dá um "bump" para o lado
+				if (enableBumpRoad) {
+					bateuLateral = -2;
+					playerVelRoad -= 10;
+					if (playerVelRoad < minPlayerVelRoad) {
+						playerVelRoad = minPlayerVelRoad;
+					}
+				}
 			}
 			
 			// Incrementa a iteração
@@ -682,7 +701,7 @@ void saida(void const* args) {
 		osMutexWait(idMutex, osWaitForever);
 		
 		// Faz buzz se bateu ou está acelerando
-		if (colisaoIrDireita || colisaoIrEsquerda) {
+		if (colisaoIrDireita || colisaoIrEsquerda || bateuLateral != 0) {
 			buzzer_per_set(0x8000);
 			buzzer_write(true);
 		}
