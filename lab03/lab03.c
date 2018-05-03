@@ -130,6 +130,7 @@ int16_t xRightCurve[64]; // Pontos da curva direita (em função de y)
 
 Weather weather = DAY; // Condições de tempo atuais
 uint16_t numDia = 1; // Dia atual
+uint16_t pontuacao = 0; // Carros ultrapassados
 
 uint16_t buzzerPeriod = maxBuzzerPeriod; // Período atual do buzzer
 
@@ -171,6 +172,7 @@ void init_cars() {
 	             playerInitialPosX + carBigWidth, playerPosY + carBigHeight);
 	playerCar.firstDraw = true;
 	playerCar.player = true;
+	playerCar.ultrapassado = false;
 	playerCar.lane = 0;
 	playerCar.color = playerColor;
 	playerCar.image = carBigImage;
@@ -181,6 +183,7 @@ void init_cars() {
 					 playerInitialPosX + carBigWidth, 0 - 50*i + carTinyHeight);
 		oponenteCar[i].firstDraw = true;
 		oponenteCar[i].player = false;
+		oponenteCar[i].ultrapassado = false;
 		oponenteCar[i].lane = rand()%3 + 1;
 		oponenteCar[i].color = i%2 == 0 ? ClrLightBlue : ClrOrange;
 		oponenteCar[i].image = carTinyImage;
@@ -410,7 +413,7 @@ void veiculoOutros(void const* args) {
 	static const int16_t limiarTiny = 50;//43;
 	static const int16_t limiarSmall = 60;//54;
 	static const int16_t limiarAvg = 70;//64;
-	static const int16_t limiarNormal = 80;//74;
+	static const int16_t limiarNormal = 96;//74;
 	
 	static const int16_t outrosVelRoad = 200;
 	
@@ -443,6 +446,7 @@ void veiculoOutros(void const* args) {
 						oponenteCar[i].hitbox.i16YMin -= 280;
 						oponenteCar[i].hitbox.i16YMax -= 280;
 						oponenteCar[i].lane = rand()%3 + 1;
+						oponenteCar[i].ultrapassado = false;
 					}
 					
 					// Altera a imagem e as dimensões da hitbox
@@ -514,7 +518,6 @@ void gerenciadorTrajeto(void const* args) {
 			
 			// TODO: Muitas coisas:
 			//  - "Turn" mais lento na neve (e também em velocidades pequenas)
-			//  - Colisão com outros veículos
 			//  - Pontuação
 			
 			// Aumenta o odômetro do painel
@@ -600,7 +603,7 @@ void gerenciadorTrajeto(void const* args) {
 				}
 			}
 			
-			// Check de colisão
+			// Check de colisão e de ultrapassagem
 			for (i = 0; i < 4; ++i) {
 				if (GrRectOverlapCheck(&(playerCar.hitbox), &(oponenteCar[i].hitbox))) {
 					if (!colisaoIrDireita && !colisaoIrEsquerda) {
@@ -612,6 +615,11 @@ void gerenciadorTrajeto(void const* args) {
 							colisaoIrEsquerda = true;
 						}
 					}
+				}
+				
+				if (!(oponenteCar[i].ultrapassado) && playerCar.hitbox.i16YMax < oponenteCar[i].hitbox.i16YMin) {
+					++pontuacao;
+					oponenteCar[i].ultrapassado = true;
 				}
 			}
 			
@@ -777,8 +785,12 @@ void painelInstrumentos(void const* args) {
 		
 		GrContextForegroundSet(&sContext, scoreFontColor);
 		GrContextBackgroundSet(&sContext, scoreFontBgColor);
+		
 		intToString(odometro/10000, stringOdometro, 6, 10, 5);
 		GrStringDrawCentered(&sContext, stringOdometro, -1, 63, 104, true);
+		
+		intToString(pontuacao, stringOdometro, 6, 10, 3);
+		GrStringDraw(&sContext, stringOdometro, 3, 60, 113, true);
 		
 		if (oldNumDia != numDia) {
 			oldNumDia = numDia;

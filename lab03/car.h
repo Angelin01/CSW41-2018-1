@@ -8,6 +8,7 @@
 typedef struct Car {
 	bool firstDraw;
 	bool player;
+	bool ultrapassado;
 	
 	uint8_t lane;
 	
