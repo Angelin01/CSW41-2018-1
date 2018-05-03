@@ -94,8 +94,6 @@ static const uint32_t curveChangeFactor = 50; // Frequência da alteração da c
 static const uint16_t maxBuzzerPeriod = 0x4000; // Período máximo do som do buzzer
 static const uint16_t minBuzzerPeriod = 0x1800; // Período mínimo do som do buzzer
 
-static const uint16_t defaultBuzzerVolume = 0x7FFF;
-
 typedef enum {
 	LEFT_CURVE,
 	STRAIGHT,
@@ -369,7 +367,12 @@ void veiculoJogador(void const* args) {
 					playerVelX = -1;
 				}
 				else {
-					playerVelX = (leituraJoyX/1350 - 1) * (4 * playerVelRoad/maxPlayerVelRoad + 1);
+					if (weather == SNOW) {
+						playerVelX = (leituraJoyX/1350 - 1) * (2 * playerVelRoad/maxPlayerVelRoad + 1);
+					}
+					else {
+						playerVelX = (leituraJoyX/1350 - 1) * (4 * playerVelRoad/maxPlayerVelRoad + 1);
+					}
 				}
 				
 				playerPosX += playerVelX;
@@ -668,9 +671,6 @@ void saida(void const* args) {
 	int16_t oldXRightCurve[64];
 	int16_t oldOffsetCurva;
 	
-	// Volume do buzzer
-	uint16_t buzzerVolume;
-	
 	// Para a mudança de condição de tempo
 	Weather oldWeather = DAY;
 	
@@ -681,27 +681,24 @@ void saida(void const* args) {
 		// Aguarda mutex
 		osMutexWait(idMutex, osWaitForever);
 		
-		// Faz buzz
-		// Se acelerando, volume normal, se não metade
-		// Se neve, volume -1/3
-		buzzerVolume = defaultBuzzerVolume;
-		if (aceleracao > 0) {
+		// Faz buzz se bateu ou está acelerando
+		if (colisaoIrDireita || colisaoIrEsquerda) {
+			buzzer_per_set(0x8000);
+			buzzer_write(true);
+		}
+		else if (aceleracao > 0) {
 			buzzerPeriod -= 0x80;
 			if (buzzerPeriod < minBuzzerPeriod) {
 				buzzerPeriod = maxBuzzerPeriod;
 			}
 			buzzer_per_set(buzzerPeriod);
+			buzzer_write(true);
 		}
 		else {
-			buzzerVolume/=2;
+			buzzer_write(false);
 		}
 		
-		if(weather == SNOW) {
-			buzzerVolume = buzzerVolume/3 * 2;
-		}
-		buzz_vol_set(buzzerVolume);
-		
-		// Copia dados iniciais da curva e mostra, caso seja a primeira iteração, além de ligar buzzer
+		// Copia dados iniciais da curva e mostra, caso seja a primeira iteração
 		if (firstIter) {
 			firstIter = false;
 			
@@ -716,8 +713,6 @@ void saida(void const* args) {
 				GrPixelDraw(&sContext, xLeftCurve[j], j+32);
 				GrPixelDraw(&sContext, xRightCurve[j], j+32);
 			}
-			
-			buzzer_write(true);
 		}
 		
 		// Altera as cores de acordo com a condição de tempo
