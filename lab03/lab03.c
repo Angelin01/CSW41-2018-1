@@ -627,6 +627,10 @@ void gerenciadorTrajeto(void const* args) {
 					++pontuacao;
 					oponenteCar[i].ultrapassado = true;
 				}
+				else if (oponenteCar[i].ultrapassado && playerCar.hitbox.i16YMax > oponenteCar[i].hitbox.i16YMin) {
+					--pontuacao;
+					oponenteCar[i].ultrapassado = false;
+				}
 			}
 			
 			// Player bateu no lado esquerdo da pista
