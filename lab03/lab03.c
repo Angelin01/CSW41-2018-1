@@ -141,7 +141,6 @@ Car oponenteCar[4];
 Car playerCar;
 
 bool gameRunning = false;
-bool playEndSound = false;
 
 bool colisaoIrDireita = false;
 bool colisaoIrEsquerda = false;
@@ -152,8 +151,11 @@ int8_t bateuLateral = 0;
 // Mutexes e semáforos
 // ===========================================================================
 
-osMutexId idMutex;
-osMutexDef(mutex);
+osMutexId idMutexVarGlob;
+osMutexDef(mutexVarGlob);
+
+osMutexId idMutexTela;
+osMutexDef(mutexTela);
 
 // ===========================================================================
 // Funções em geral
@@ -375,9 +377,6 @@ void veiculoJogador(void const* args) {
 		}
 		
 		if (gameRunning) {
-			// Aguarda mutex
-			osMutexWait(idMutex, osWaitForever);
-			
 			// Posicionamento lateral
 			if (iteracao % 5 == 0) {
 				if (colisaoIrDireita || bateuLateral > 0) {
@@ -395,6 +394,8 @@ void veiculoJogador(void const* args) {
 					}
 				}
 				
+				// Seção crítica
+				osMutexWait(idMutexVarGlob, osWaitForever);
 				playerPosX += playerVelX;
 				playerCar.hitbox.i16XMin += playerVelX;
 				playerCar.hitbox.i16XMax += playerVelX;
@@ -402,9 +403,11 @@ void veiculoJogador(void const* args) {
 				if (bateuLateral != 0) {
 					bateuLateral -= playerVelX;
 				}
+				osMutexRelease(idMutexVarGlob); // Fim seção crítica
 			}
 			
-			// Aceleração
+			// Aceleração (seção crítica)
+			osMutexWait(idMutexVarGlob, osWaitForever);
 			if (colisaoIrDireita || colisaoIrEsquerda || bateuLateral != 0) {
 				aceleracao = 0;
 			}
@@ -417,6 +420,7 @@ void veiculoJogador(void const* args) {
 			else {
 				aceleracao = 0;
 			}
+			osMutexRelease(idMutexVarGlob); // Fim seção crítica
 			
 			playerVelRoad += aceleracao;
 			if (playerVelRoad < minPlayerVelRoad) {
@@ -427,9 +431,6 @@ void veiculoJogador(void const* args) {
 			}
 			
 			iteracao++;
-			
-			// Libera mutex
-			osMutexRelease(idMutex);
 		}
 		
 		// Envia sinal para a próxima thread
@@ -458,11 +459,12 @@ void veiculoOutros(void const* args) {
 		osSignalWait(0x1, osWaitForever);
 		
 		if (gameRunning) {
-			// Aguarda mutex
-			osMutexWait(idMutex, osWaitForever);
-			
 			if (iteracao % 20 == 0) {
+				// Altera as propriedades dos oponentes
 				for (i = 0; i < 4; i++) {
+					// Seção crítica (editando as propriedades de um oponente)
+					osMutexWait(idMutexVarGlob, osWaitForever);
+					
 					// Altera a posição y do oponente
 					oponenteCar[i].hitbox.i16YMin += (playerVelRoad - outrosVelRoad) / 100;
 					oponenteCar[i].hitbox.i16YMax += (playerVelRoad - outrosVelRoad) / 100;
@@ -511,13 +513,12 @@ void veiculoOutros(void const* args) {
 						oponenteCar[i].hitbox.i16XMin = xLeftCurve[posy-32] + larguraPistaY/4*oponenteCar[i].lane + 1 - carWidth/2;
 						oponenteCar[i].hitbox.i16XMax = xLeftCurve[posy-32] + larguraPistaY/4*oponenteCar[i].lane + 1 + carWidth/2;
 					}
+					
+					osMutexRelease(idMutexVarGlob); // Fim seção crítica
 				}
 			}
 			
 			iteracao++;
-			
-			// Libera mutex
-			osMutexRelease(idMutex);
 		}
 		
 		// Envia sinal para a próxima thread
@@ -541,11 +542,10 @@ void gerenciadorTrajeto(void const* args) {
 		osSignalWait(0x1, osWaitForever);
 		
 		if (gameRunning) {
-			// Aguarda mutex
-			osMutexWait(idMutex, osWaitForever);
-			
-			// Aumenta o odômetro do painel
+			// Aumenta o odômetro do painel (seção crítica)
+			osMutexWait(idMutexVarGlob, osWaitForever);
 			odometro += playerVelRoad;
+			osMutexRelease(idMutexVarGlob); // Fim seção crítica
 			
 			// Troca o tipo da curva quando necessário
 			if (odometro/10000 > contadorCurva*curveChangeFactor) {
@@ -555,17 +555,16 @@ void gerenciadorTrajeto(void const* args) {
 			
 			// Troca a condição climática quando necessário
 			if (iteracao != 0 && iteracao % moduloAtualizaWeather == 0) {
+				// Seção crítica
+				osMutexWait(idMutexVarGlob, osWaitForever);
 				weather = (weather + 1) % 3;
 				if (weather == 0) {
 					++numDia;
 					if (numDia > 2) {
 						gameRunning = false;
-						playEndSound = true;
-						buzzerPeriod = 0x200;
-						osDelay(1000);
-						playEndSound = false;
 					}
 				}
+				osMutexRelease(idMutexVarGlob); // Fim seção crítica
 			}
 			
 			// Computa a nova curva caso ela ainda não esteja no ponto desejado
@@ -579,37 +578,49 @@ void gerenciadorTrajeto(void const* args) {
 						// Se a curva está para a direita, diminui o offset
 						if (offsetCurva > 0) {
 							// Altera o offset de acordo com a velocidade
+							// Seção crítica
+							osMutexWait(idMutexVarGlob, osWaitForever);
 							offsetCurva -= 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
 							if (offsetCurva < 0) {
 								offsetCurva = 0; // Corrige se passar do ponto desejado
 							}
 							generateRoad(128, 64, offsetCurva, 16);
+							osMutexRelease(idMutexVarGlob); // Fim seção crítica
 						}
 						// Se a curva está para a esquerda, aumenta o offset
 						else if (offsetCurva < 0) {
+							// Seção crítica
+							osMutexWait(idMutexVarGlob, osWaitForever);
 							offsetCurva += 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
 							if (offsetCurva > 0) {
 								offsetCurva = 0;
 							}
 							generateRoad(128, 64, offsetCurva, 16);
+							osMutexRelease(idMutexVarGlob); // Fim seção crítica
 						}
 						break;
 					case LEFT_CURVE:
 						if (offsetCurva > (-1)*maxOffsetCurve) {
+							// Seção crítica
+							osMutexWait(idMutexVarGlob, osWaitForever);
 							offsetCurva -= 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
 							if (offsetCurva < (-1)*maxOffsetCurve) {
 								offsetCurva = (-1)*maxOffsetCurve;
 							}
 							generateRoad(128, 64, offsetCurva, 16);
+							osMutexRelease(idMutexVarGlob); // Fim seção crítica
 						}
 						break;
 					case RIGHT_CURVE:
 						if (offsetCurva < maxOffsetCurve) {
+							// Seção crítica
+							osMutexWait(idMutexVarGlob, osWaitForever);
 							offsetCurva += 1 + playerVelRoad * fatorVel / maxPlayerVelRoad;
 							if (offsetCurva > maxOffsetCurve) {
 								offsetCurva = maxOffsetCurve;
 							}
 							generateRoad(128, 64, offsetCurva, 16);
+							osMutexRelease(idMutexVarGlob); // Fim seção crítica
 						}
 						break;
 					default:
@@ -622,14 +633,20 @@ void gerenciadorTrajeto(void const* args) {
 			if (tipoCurva == LEFT_CURVE || tipoCurva == RIGHT_CURVE) {
 				if (playerVelRoad != 0 && iteracao % moduloCentrifuga == 0) {
 					if (tipoCurva == LEFT_CURVE) {
+						// Seção crítica
+						osMutexWait(idMutexVarGlob, osWaitForever);
 						++playerPosX;
 						++(playerCar.hitbox.i16XMin);
 						++(playerCar.hitbox.i16XMax);
+						osMutexRelease(idMutexVarGlob); // Fim seção crítica
 					}
 					else if (tipoCurva == RIGHT_CURVE) {
+						// Seção crítica
+						osMutexWait(idMutexVarGlob, osWaitForever);
 						--playerPosX;
 						--(playerCar.hitbox.i16XMin);
 						--(playerCar.hitbox.i16XMax);
+						osMutexRelease(idMutexVarGlob); // Fim seção crítica
 					}
 				}
 			}
@@ -639,15 +656,20 @@ void gerenciadorTrajeto(void const* args) {
 				if (GrRectOverlapCheck(&(playerCar.hitbox), &(oponenteCar[i].hitbox))) {
 					if (!colisaoIrDireita && !colisaoIrEsquerda) {
 						playerVelRoad = minPlayerVelRoad;
+						// Seção crítica
+						osMutexWait(idMutexVarGlob, osWaitForever);
 						if (getCarPosX(&playerCar) < 64) {
 							colisaoIrDireita = true;
 						}
 						else {
 							colisaoIrEsquerda = true;
 						}
+						osMutexRelease(idMutexVarGlob); // Fim seção crítica
 					}
 				}
 				
+				// Seção crítica
+				osMutexWait(idMutexVarGlob, osWaitForever);
 				if (!(oponenteCar[i].ultrapassado) && playerCar.hitbox.i16YMax < oponenteCar[i].hitbox.i16YMin) {
 					if (pontuacao > 0) {
 						--pontuacao;
@@ -660,10 +682,12 @@ void gerenciadorTrajeto(void const* args) {
 					}
 					oponenteCar[i].ultrapassado = false;
 				}
+				osMutexRelease(idMutexVarGlob); // Fim seção crítica
 			}
 			
-			// Player bateu no lado esquerdo da pista
+			// Player bateu no lado esquerdo da pista (seção crítica)
 			if (playerPosX < boundsLeftX) {
+				osMutexWait(idMutexVarGlob, osWaitForever);
 				playerPosX = boundsLeftX;
 				playerCar.hitbox.i16XMin = boundsLeftX;
 				playerCar.hitbox.i16XMax = boundsLeftX + carBigWidth;
@@ -677,9 +701,11 @@ void gerenciadorTrajeto(void const* args) {
 						playerVelRoad = minPlayerVelRoad;
 					}
 				}
+				osMutexRelease(idMutexVarGlob); // Fim seção crítica
 			}
-			// Player bateu no lado direito da pista
+			// Player bateu no lado direito da pista (seção crítica)
 			else if (playerPosX > boundsRightX - carBigWidth) {
+				osMutexWait(idMutexVarGlob, osWaitForever);
 				playerPosX = boundsRightX - carBigWidth;
 				playerCar.hitbox.i16XMin = boundsRightX - carBigWidth;
 				playerCar.hitbox.i16XMax = boundsRightX;
@@ -693,13 +719,11 @@ void gerenciadorTrajeto(void const* args) {
 						playerVelRoad = minPlayerVelRoad;
 					}
 				}
+				osMutexRelease(idMutexVarGlob); // Fim seção crítica
 			}
 			
 			// Incrementa a iteração
 			iteracao++;
-			
-			// Libera mutex
-			osMutexRelease(idMutex);
 		}
 		
 		// Delay no input
@@ -726,20 +750,16 @@ void saida(void const* args) {
 	// Para a mudança de condição de tempo
 	Weather oldWeather = DAY;
 	
+	// Cada local que acessa uma variável global nessa thread é uma seção crítica,
+	// pois esses valores podem ser alterados pelas outras threads.
+	
 	while (true) {
 		// Aguarda sinal
 		osSignalWait(0x1, osWaitForever);
 		
-		// Aguarda mutex
-		osMutexWait(idMutex, osWaitForever);
-		
-		// Faz buzz se bateu ou está acelerando ou acabou
-		if (playEndSound == true) {
-			buzzer_write(true);
-			buzzerPeriod += 0x20;
-			buzzer_per_set(buzzerPeriod);
-		}
-		else if (colisaoIrDireita || colisaoIrEsquerda || bateuLateral != 0) {
+		// Faz buzz se bateu ou está acelerando
+		osMutexWait(idMutexVarGlob, osWaitForever); // Seção crítica
+		if (colisaoIrDireita || colisaoIrEsquerda || bateuLateral != 0) {
 			buzzer_per_set(0x8000);
 			buzzer_write(true);
 		}
@@ -754,9 +774,11 @@ void saida(void const* args) {
 		else {
 			buzzer_write(false);
 		}
+		osMutexRelease(idMutexVarGlob); // Fim seção crítica
 		
 		// Copia dados iniciais da curva e mostra, caso seja a primeira iteração
 		if (firstIter) {
+			osMutexWait(idMutexVarGlob, osWaitForever); // Seção crítica varGlob
 			firstIter = false;
 			
 			oldOffsetCurva = offsetCurva;
@@ -765,14 +787,19 @@ void saida(void const* args) {
 				oldXRightCurve[j] = xRightCurve[j];
 			}
 			
+			osMutexWait(idMutexTela, osWaitForever); // Seção crítica tela
 			for (j = 63; j >= 0; --j) {
 				GrContextForegroundSet(&sContext, j/16*0x181818 + roadLineColor);
 				GrPixelDraw(&sContext, xLeftCurve[j], j+32);
 				GrPixelDraw(&sContext, xRightCurve[j], j+32);
 			}
+			osMutexRelease(idMutexTela); // Fim seção crítica tela
+			
+			osMutexRelease(idMutexVarGlob); // Fim seção crítica varGlob
 		}
 		
 		// Altera as cores de acordo com a condição de tempo
+		osMutexWait(idMutexVarGlob, osWaitForever); // Seção crítica varGlob
 		if (oldWeather != weather) {
 			oldWeather = weather;
 			
@@ -797,12 +824,19 @@ void saida(void const* args) {
 				break;
 			}
 			
+			osMutexWait(idMutexTela, osWaitForever); // Seção crítica tela
 			show_scenario();
+			osMutexRelease(idMutexTela); // Fim seção crítica tela
+			
 			weatherChange = true;
 		}
+		osMutexRelease(idMutexVarGlob); // Fim seção crítica varGlob
 		
+		osMutexWait(idMutexVarGlob, osWaitForever); // Seção crítica varGlob
 		if (oldOffsetCurva != offsetCurva || weatherChange) {
 			oldOffsetCurva = offsetCurva;
+			
+			osMutexWait(idMutexTela, osWaitForever); // Seção crítica tela
 			for (j = 63; j >= 0; --j) {
 				// Apaga a curva anterior
 				GrContextForegroundSet(&sContext, terrainColor);
@@ -818,24 +852,41 @@ void saida(void const* args) {
 				oldXLeftCurve[j] = xLeftCurve[j];
 				oldXRightCurve[j] = xRightCurve[j];
 			}
+			osMutexRelease(idMutexTela); // Fim seção crítica tela
 		}
+		else {
+			// Sempre reprinta alguns pixels de cada lado, porque o cantinho do carro pode apagá-los
+			osMutexWait(idMutexTela, osWaitForever); // Seção crítica tela
+			for (j = 59; j >= 50; --j) {
+				GrContextForegroundSet(&sContext, j/16*0x181818 + roadLineColor);
+				GrPixelDraw(&sContext, xLeftCurve[j], j+32);
+				GrPixelDraw(&sContext, xRightCurve[j], j+32);
+			}
+			osMutexRelease(idMutexTela); // Fim seção crítica tela
+		}
+		osMutexRelease(idMutexVarGlob); // Fim seção crítica varGlob
 		
+		osMutexWait(idMutexVarGlob, osWaitForever); // Seção crítica varGlob
 		for (j = 0; j < 4; ++j) {
+			osMutexWait(idMutexTela, osWaitForever); // Seção crítica tela
 			draw_car(&sContext, &(oponenteCar[j]), terrainColor, weatherChange);
+			osMutexRelease(idMutexTela); // Fim seção crítica tela
 		}
+		osMutexRelease(idMutexVarGlob); // Fim seção crítica varGlob
 		
+		osMutexWait(idMutexVarGlob, osWaitForever); // Seção crítica varGlob
 		if (oldCarX != playerPosX || weatherChange) {			
 			// Mostra o carro e já apaga o rastro
+			osMutexWait(idMutexTela, osWaitForever); // Seção crítica tela
 			draw_car(&sContext, &playerCar, terrainColor, true);
+			osMutexRelease(idMutexTela); // Fim seção crítica tela
 			
 			// Guarda a posição X dessa iteração para utilizar na próxima
 			oldCarX = playerPosX;
 			
 			weatherChange = false;
 		}
-		
-		// Libera mutex
-		osMutexRelease(idMutex);
+		osMutexRelease(idMutexVarGlob); // Fim seção crítica varGlob
 	}
 }
 
@@ -846,15 +897,15 @@ void painelInstrumentos(void const* args) {
 		// Aguarda sinal
 		osSignalWait(0x1, osWaitForever);
 		
-		// Aguarda mutex
-		osMutexWait(idMutex, osWaitForever);
+		osMutexWait(idMutexVarGlob, osWaitForever); // Seção crítica varGlob
+		osMutexWait(idMutexTela, osWaitForever); // Seção crítica tela
 		
 		GrContextForegroundSet(&sContext, scoreFontColor);
 		GrContextBackgroundSet(&sContext, scoreFontBgColor);
 		
 		intToString(odometro/10000, stringOdometro, 6, 10, 5);
 		GrStringDrawCentered(&sContext, stringOdometro, -1, 63, 104, true);
-		
+
 		intToString(pontuacao, stringOdometro, 6, 10, 3);
 		GrStringDraw(&sContext, stringOdometro, 3, 60, 113, true);
 		
@@ -864,8 +915,8 @@ void painelInstrumentos(void const* args) {
 			GrStringDraw(&sContext, stringOdometro, 1, 48, 113, true);
 		}
 		
-		// Libera mutex
-		osMutexRelease(idMutex);
+		osMutexRelease(idMutexTela); // Fim seção crítica tela
+		osMutexRelease(idMutexVarGlob); // Fim seção crítica varGlob
 	}
 }
 
@@ -914,7 +965,8 @@ int main (void) {
 	
 	generateRoad(128, 64, offsetCurva, 16);
 	
-	idMutex = osMutexCreate(osMutex(mutex));
+	idMutexTela = osMutexCreate(osMutex(mutexTela));
+	idMutexVarGlob = osMutexCreate(osMutex(mutexVarGlob));
 	
 	idEntrada = osThreadCreate(osThread(entrada), NULL);
 	idVeiculoJogador = osThreadCreate(osThread(veiculoJogador), NULL);
