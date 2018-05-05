@@ -94,6 +94,9 @@ static const uint16_t minBuzzerPeriod = 0x1800; // Período mínimo do som do bu
 
 static const bool enableBumpRoad = true; // Habilita o "bump" ao bater nas bordas da pista
 
+static const int16_t carDistance = 40; // Distância entre dois carros oponentes
+static const int16_t carRespawnFactor = 160; // O quanto um carro vai para a frente no respawn
+
 typedef enum {
 	LEFT_CURVE,
 	STRAIGHT,
@@ -130,7 +133,7 @@ int16_t xRightCurve[64]; // Pontos da curva direita (em função de y)
 
 Weather weather = DAY; // Condições de tempo atuais
 uint16_t numDia = 1; // Dia atual
-uint16_t pontuacao = 0; // Carros ultrapassados
+uint16_t pontuacao = 200; // Carros a ultrapassar
 
 uint16_t buzzerPeriod = maxBuzzerPeriod; // Período atual do buzzer
 
@@ -163,6 +166,23 @@ void init_all() {
 	buzzer_per_set(maxBuzzerPeriod);
 }
 
+uint32_t getRandomColor() {
+	// Não precisa break porque retorna
+	switch(rand()%5) {
+	case 0:
+		return ClrYellow;
+	case 1:
+		return ClrLightBlue;
+	case 2:
+		return ClrOrange;
+	case 3:
+		return ClrCyan;
+	case 4:
+	default:
+		return ClrPink;
+	}
+}
+
 void init_cars() {
 	int i;
 	
@@ -178,13 +198,13 @@ void init_cars() {
 	
 	for (i = 0; i < 4; i++) {
 		setCarHitbox(&oponenteCar[i],
-					 playerInitialPosX, 0 - 50*i,
-					 playerInitialPosX + carBigWidth, 0 - 50*i + carTinyHeight);
+					 playerInitialPosX, 0 - carDistance*i,
+					 playerInitialPosX + carBigWidth, 0 - carDistance*i + carTinyHeight);
 		oponenteCar[i].firstDraw = true;
 		oponenteCar[i].player = false;
 		oponenteCar[i].ultrapassado = false;
 		oponenteCar[i].lane = rand()%3 + 1;
-		oponenteCar[i].color = i%2 == 0 ? ClrLightBlue : ClrOrange;
+		oponenteCar[i].color = getRandomColor();
 		oponenteCar[i].image = carTinyImage;
 	}
 }
@@ -349,7 +369,7 @@ void veiculoJogador(void const* args) {
 		osSignalWait(0x1, osWaitForever);
 		
 		// Espera o player apertar o acelerador para iniciar
-		if (!gameRunning && leituraBotao) {
+		if (!gameRunning && leituraBotao && numDia == 1) {
 			gameRunning = true;
 		}
 		
@@ -449,10 +469,11 @@ void veiculoOutros(void const* args) {
 					// Se este passou de um determinado limiar
 					if (oponenteCar[i].hitbox.i16YMin > 127) {
 						// Volta ele para a frente e altera o rand da lane
-						oponenteCar[i].hitbox.i16YMin -= 280;
-						oponenteCar[i].hitbox.i16YMax -= 280;
+						oponenteCar[i].hitbox.i16YMin -= carRespawnFactor;
+						oponenteCar[i].hitbox.i16YMax -= carRespawnFactor;
 						oponenteCar[i].lane = rand()%3 + 1;
 						oponenteCar[i].ultrapassado = false;
+						oponenteCar[i].color = getRandomColor();
 					}
 					
 					// Altera a imagem e as dimensões da hitbox
@@ -522,10 +543,6 @@ void gerenciadorTrajeto(void const* args) {
 			// Aguarda mutex
 			osMutexWait(idMutex, osWaitForever);
 			
-			// TODO: Muitas coisas:
-			//  - "Turn" mais lento na neve (e também em velocidades pequenas)
-			//  - Pontuação
-			
 			// Aumenta o odômetro do painel
 			odometro += playerVelRoad;
 			
@@ -540,6 +557,9 @@ void gerenciadorTrajeto(void const* args) {
 				weather = (weather + 1) % 3;
 				if (weather == 0) {
 					++numDia;
+					if (numDia > 2) {
+						gameRunning = false;
+					}
 				}
 			}
 			
@@ -624,11 +644,15 @@ void gerenciadorTrajeto(void const* args) {
 				}
 				
 				if (!(oponenteCar[i].ultrapassado) && playerCar.hitbox.i16YMax < oponenteCar[i].hitbox.i16YMin) {
-					++pontuacao;
+					if (pontuacao > 0) {
+						--pontuacao;
+					}
 					oponenteCar[i].ultrapassado = true;
 				}
 				else if (oponenteCar[i].ultrapassado && playerCar.hitbox.i16YMax > oponenteCar[i].hitbox.i16YMin) {
-					--pontuacao;
+					if (pontuacao != 0) {
+						++pontuacao;
+					}
 					oponenteCar[i].ultrapassado = false;
 				}
 			}
