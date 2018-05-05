@@ -141,6 +141,7 @@ Car oponenteCar[4];
 Car playerCar;
 
 bool gameRunning = false;
+bool playEndSound = false;
 
 bool colisaoIrDireita = false;
 bool colisaoIrEsquerda = false;
@@ -562,6 +563,12 @@ void gerenciadorTrajeto(void const* args) {
 					++numDia;
 					if (numDia > 2) {
 						gameRunning = false;
+						playEndSound = true;
+						buzzerPeriod = 0x200;
+						osMutexRelease(idMutexVarGlob);
+						osDelay(1000);
+						osMutexWait(idMutexVarGlob, osWaitForever);
+						playEndSound = false;
 					}
 				}
 				osMutexRelease(idMutexVarGlob); // Fim seção crítica
@@ -757,9 +764,14 @@ void saida(void const* args) {
 		// Aguarda sinal
 		osSignalWait(0x1, osWaitForever);
 		
-		// Faz buzz se bateu ou está acelerando
+		// Faz buzz se acabou, bateu ou está acelerando
 		osMutexWait(idMutexVarGlob, osWaitForever); // Seção crítica
-		if (colisaoIrDireita || colisaoIrEsquerda || bateuLateral != 0) {
+		if (playEndSound) {
+			buzzerPeriod += 0x20;
+			buzzer_per_set(buzzerPeriod);
+			buzzer_write(true);
+		}
+		else if (colisaoIrDireita || colisaoIrEsquerda || bateuLateral != 0) {
 			buzzer_per_set(0x8000);
 			buzzer_write(true);
 		}
