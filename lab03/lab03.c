@@ -565,8 +565,9 @@ void gerenciadorTrajeto(void const* args) {
 						gameRunning = false;
 						playEndSound = true;
 						buzzerPeriod = 0x200;
+						aceleracao = 0;
 						osMutexRelease(idMutexVarGlob);
-						osDelay(1000);
+						osDelay(8000);
 						osMutexWait(idMutexVarGlob, osWaitForever);
 						playEndSound = false;
 					}
