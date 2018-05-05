@@ -141,6 +141,7 @@ Car oponenteCar[4];
 Car playerCar;
 
 bool gameRunning = false;
+bool playEndSound = false;
 
 bool colisaoIrDireita = false;
 bool colisaoIrEsquerda = false;
@@ -559,6 +560,10 @@ void gerenciadorTrajeto(void const* args) {
 					++numDia;
 					if (numDia > 2) {
 						gameRunning = false;
+						playEndSound = true;
+						buzzerPeriod = 0x200;
+						osDelay(1000);
+						playEndSound = false;
 					}
 				}
 			}
@@ -728,8 +733,13 @@ void saida(void const* args) {
 		// Aguarda mutex
 		osMutexWait(idMutex, osWaitForever);
 		
-		// Faz buzz se bateu ou está acelerando
-		if (colisaoIrDireita || colisaoIrEsquerda || bateuLateral != 0) {
+		// Faz buzz se bateu ou está acelerando ou acabou
+		if (playEndSound == true) {
+			buzzer_write(true);
+			buzzerPeriod += 0x20;
+			buzzer_per_set(buzzerPeriod);
+		}
+		else if (colisaoIrDireita || colisaoIrEsquerda || bateuLateral != 0) {
 			buzzer_per_set(0x8000);
 			buzzer_write(true);
 		}
