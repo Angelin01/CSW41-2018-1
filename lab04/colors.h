@@ -1,5 +1,8 @@
 #include "grlib.h"
 
+#define MAX_COLORS_PER_GROUP 10
+#define GROUP_COUNT 13
+
 typedef struct Color {
 	uint32_t colorValue;
 	char* colorName;
