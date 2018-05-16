@@ -1,5 +1,5 @@
-#ifndef __COLORS__
-#define __COLORS__
+#ifndef __COLORS_LAB4_H__
+#define __COLORS_LAB4_H__
 
 #include "grlib.h"
 

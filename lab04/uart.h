@@ -5,14 +5,18 @@
 * Ver secao "16.4 Initialization and Configuration"
 */
 
-#ifndef __UART__
-#define __UART__
+// DELETAR DEPOIS
+// VIDEO REFERENCIA
+// https://www.youtube.com/watch?v=Vy-k7u5djM4&t=20s
 
-#define RCGCUART 0x400FE618 // Registrador de controle dos modulos UART
-#define RCGCGPIO 0x400FE608 // Registrador de controle de clock de modulos de I/O
-#define GPIOAFSELA 0x40058420 // Registrador que controla se pinos são I/O generico ou usados por perifericos para porta A
-#define GPIOPCTLA 0x4005852C // Registrador usado em conjunto com GPIOAFSELA para selecionar o tipo de sinal para cada pino
-#define GPIOADEN 0x4005851C // Registrador que habilita e desabilita sinais digitais
+#ifndef __UART_LAB4_H__
+#define __UART_LAB4_H__
+
+#define RCGCUART (volatile uint32_t*) 0x400FE618 // Registrador de controle dos modulos UART
+#define RCGCGPIO (volatile uint32_t*) 0x400FE608 // Registrador de controle de clock de modulos de I/O
+#define GPIOAFSELA (volatile uint32_t*) 0x40058420 // Registrador que controla se pinos são I/O generico ou usados por perifericos para porta A
+#define GPIOPCTLA (volatile uint32_t*) 0x4005852C // Registrador usado em conjunto com GPIOAFSELA para selecionar o tipo de sinal para cada pino
+#define GPIOADEN (volatile uint32_t*) 0x4005851C // Registrador que habilita e desabilita sinais digitais
 
 bool uart_init();
 
