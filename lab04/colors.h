@@ -1,3 +1,6 @@
+#ifndef __COLORS__
+#define __COLORS__
+
 #include "grlib.h"
 
 #define MAX_COLORS_PER_GROUP 10
@@ -207,3 +210,5 @@ static const ColorGroup redColors = {
 
 // Grupo geral de cores
 static const ColorGroup colorGroups[] = {blueColors1, blueColors2, greenColors1, greenColors2, brownColors1, brownColors2, purpleColors1, purpleColors2, cyanColors, orangeColors, yellowColors, pinkColors, redColors};
+
+#endif
