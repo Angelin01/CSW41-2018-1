@@ -23,7 +23,7 @@ void uart_init() {
 	accessReg(UART0LCRH) = 0x60; // = 0b01100000 Configura o serial para 8 data bits, 1 stop bit sem paridade
 	accessReg(UART0CC) = 0x0; // Configura para usar o clock normal do sistema (igual a reset)
 	
-	accessReg(UART0CTL) |= (1<<0); // Reabilita o UART
+	accessReg(UART0CTL) |= (1<<0) | (1<<8) | (1<<9); // Reabilita o UART
 }
 
 void uart_putChar(char c) {
