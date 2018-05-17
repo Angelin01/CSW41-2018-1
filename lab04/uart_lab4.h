@@ -69,10 +69,13 @@ void uart_init(uint32_t baudRate, uint32_t dataConfig);
 #define PARITY_ODD  0x2
 #define PARITY_EVEN 0x6
 
-// Funcao para enviar caracteres BLOQUEANTE
+/* Funcao para enviar caracteres BLOQUEANTE */
 void uart_putChar(char c);
 
-// Funcao para receber caracteres BLOQUEANTE
+/* Funcao para enviar uma string BLOQUEANTE */
+void uart_sendString(char* s);
+
+/* Funcao para receber caracteres BLOQUEANTE */
 char uart_getChar();
 
 #endif

@@ -90,6 +90,12 @@ void uart_putChar(char c) {
 	accessReg(UART0DR) = c; // Coloca valor no reg de dados
 }
 
+void uart_sendString(char* s) {
+	while(*s) {
+		uart_putChar(*s++);
+	}
+}
+
 char uart_getChar() {
 	char c;
 	while(accessReg(UART0FR) & (1<<4)); // Espera a FIFO de entrada estar vazia
