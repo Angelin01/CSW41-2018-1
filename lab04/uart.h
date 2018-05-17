@@ -12,6 +12,8 @@
 #ifndef __UART_LAB4_H__
 #define __UART_LAB4_H__
 
+#include <stdint.h>
+
 // Para facilidade de uso dos registradores
 #define accessReg(x) \
         (*((volatile uint32_t *)(x)))

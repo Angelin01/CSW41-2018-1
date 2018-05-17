@@ -9,7 +9,7 @@ void uart_init() {
 	                                            Seleciona coluna 1 no PCM0 e PCM1 para PA0 e PA1 */
 						 
 /**** AVISO: O REGISTRADOR A SEGUIR TROCA PINOS DO ESTADO DE TRI-STATE PARA INPUT OUTPUT DIGITAL ****/
-//	accessReg(GPIOADEN) |= (1<<0) | (1<<1); // Habilita sinais digitais nos pinos do GPIO		
+	accessReg(GPIOADEN) |= (1<<0) | (1<<1); // Habilita sinais digitais nos pinos do GPIO		
 	
 	accessReg(UART0CTL) &= 0xfffe; // Desabilita UART (bit 0) antes de aplicar configuracoes
 	
