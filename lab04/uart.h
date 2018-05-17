@@ -32,6 +32,13 @@
 #define UART0FR    0x4000C018 // Registrador de flags
 #define UART0DR    0x4000C000 // Registrador de dados
 
+// Funcao de inicializacao. Deve ser chamada antes de tentar enviar ou receber
 void uart_init();
+
+// Funcao para enviar caracteres BLOQUEANTE
+void uart_putChar(char c);
+
+// Funcao para receber caracteres BLOQUEANTE
+char uart_getChar();
 
 #endif

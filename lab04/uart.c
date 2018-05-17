@@ -25,3 +25,15 @@ void uart_init() {
 	
 	accessReg(UART0CTL) |= (1<<0); // Reabilita o UART
 }
+
+void uart_putChar(char c) {
+	while(accessReg(UART0FR) & (1<<5)); // Espera a FIFO de saida estar vazia
+	accessReg(UART0DR) = c; // Coloca valor no reg de dados
+}
+
+char uart_getChar() {
+	char c;
+	while(accessReg(UART0FR) & (1<<4)); // Espera a FIFO de entrada estar vazia
+	c = accessReg(UART0DR); // Pega o valor do reg de dados. Variavel intermediaria por seguranca
+	return(c);
+}
