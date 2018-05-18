@@ -13,6 +13,13 @@
 // Contexto da tela
 tContext sContext;
 
+// Outras estruturas
+#define UP 0
+#define DOWN 1
+#define NEXT_GROUP 2 
+#define PREVIOUS_GROUP 3
+#define INVALID 322
+
 void init_tela() {
 	GrContextInit(&sContext, &g_sCfaf128x128x16);
 	GrFlush(&sContext);
@@ -94,7 +101,38 @@ void menuManager() {
 }
 
 void uartManager() {
+	osEvent event;
 	
+	while(1) {
+		event = osMessageGet(uartMsg, osWaitForever);
+		if(event.status == osEventMessage) {
+			switch((char)event.value.v) {
+				case 'w':
+				case 'W':
+					osMessagePut(menuMsg, UP, osWaitForever);
+					break;
+					
+				case 'a':
+				case 'A':
+					osMessagePut(menuMsg, PREVIOUS_GROUP, osWaitForever);
+					break;
+					
+				case 's':
+				case 'S':
+					osMessagePut(menuMsg, DOWN, osWaitForever);
+					break;
+					
+				case 'd':
+				case 'D':
+					osMessagePut(menuMsg, NEXT_GROUP, osWaitForever);
+					break;
+					
+				default:
+					osMessagePut(menuMsg, INVALID, osWaitForever);
+					break;
+			}
+		}
+	}
 }
 
 osThreadDef(redLed, osPriorityNormal, 1, 0);
