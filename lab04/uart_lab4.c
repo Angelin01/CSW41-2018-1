@@ -96,7 +96,7 @@ void uart_sendString(char* s) {
 	}
 }
 
-char uart_getChar() {
+char uart_getChar(void) {
 	char c;
 	while(accessReg(UART0FR) & (1<<4)); // Espera a FIFO de entrada estar vazia
 	c = accessReg(UART0DR); // Pega o valor do reg de dados. Variavel intermediaria por seguranca

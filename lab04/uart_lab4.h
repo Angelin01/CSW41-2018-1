@@ -76,6 +76,6 @@ void uart_putChar(char c);
 void uart_sendString(char* s);
 
 /* Funcao para receber caracteres BLOQUEANTE */
-char uart_getChar();
+char uart_getChar(void);
 
 #endif
