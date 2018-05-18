@@ -63,7 +63,7 @@ osThreadId idBlueLed;
 osThreadId idMenuManager;
 osThreadId idUartManager;
 
-void redLed() {
+void redLed(void const* args) {
 	osEvent event;
 	
 	while(1) {
@@ -74,7 +74,7 @@ void redLed() {
 	}
 }
 
-void greenLed() {
+void greenLed(void const* args) {
 	osEvent event;
 	
 	while(1) {
@@ -85,7 +85,7 @@ void greenLed() {
 	}
 }
 
-void blueLed() {
+void blueLed(void const* args) {
 	osEvent event;
 	
 	while(1) {
@@ -96,11 +96,11 @@ void blueLed() {
 	}
 }
 
-void menuManager() {
+void menuManager(void const* args) {
 	
 }
 
-void uartManager() {
+void uartManager(void const* args) {
 	osEvent event;
 	
 	while(1) {
