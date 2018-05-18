@@ -57,15 +57,36 @@ osThreadId idMenuManager;
 osThreadId idUartManager;
 
 void redLed() {
+	osEvent event;
 	
+	while(1) {
+		event = osMessageGet(redMsg, osWaitForever);
+		if(event.status == osEventMessage) {
+			rgb_write_r((uint8_t) event.value.v);
+		}
+	}
 }
 
 void greenLed() {
+	osEvent event;
 	
+	while(1) {
+		event = osMessageGet(greenMsg, osWaitForever);
+		if(event.status == osEventMessage) {
+			rgb_write_g((uint8_t) event.value.v);
+		}
+	}
 }
 
 void blueLed() {
+	osEvent event;
 	
+	while(1) {
+		event = osMessageGet(blueMsg, osWaitForever);
+		if(event.status == osEventMessage) {
+			rgb_write_b((uint8_t) event.value.v);
+		}
+	}
 }
 
 void menuManager() {
