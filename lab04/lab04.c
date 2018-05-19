@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #include "cmsis_os.h"
 #include "TM4C129.h"
@@ -13,9 +14,6 @@
 
 #include "inc/hw_ints.h"
 #include "driverlib/interrupt.h"
-
-#define STR_(X) #X
-#define STR(X) STR_(X)
 
 // Outras estruturas
 #define UP 0
@@ -103,28 +101,88 @@ void blueLed(void const* args) {
 	}
 }
 
+void drawMenu(uint8_t selectedGroup, uint8_t selectedColor) {
+	int i;
+	char strHex[8];
+	static const tRectangle telaInteira = {0, 0, 128, 128};
+	
+	// Limpa tela
+	GrContextForegroundSet(&sContext, ClrBlack);
+	GrRectFill(&sContext, &telaInteira);
+	GrContextForegroundSet(&sContext, ClrWhite);
+	
+	// Printa a cor selecionada em HEX com cor que eh
+	GrContextForegroundSet(&sContext, colorGroups[selectedGroup]->colorValues[selectedColor]);
+	sprintf(strHex, "0x%0.6X", colorGroups[selectedGroup]->colorValues[selectedColor]);
+	GrStringDraw(&sContext, strHex, -1, 80, 4, true);
+	GrContextForegroundSet(&sContext, ClrWhite);
+	
+	GrStringDraw(&sContext, colorGroups[selectedGroup]->groupName, -1, 4, 4, true);
+	GrLineDraw(&sContext, 0, 13, 128, 13);
+	
+	for(i = 0; i < colorGroups[selectedGroup]->count; ++i) {
+		if(i == selectedColor) {
+			GrContextForegroundSet(&sContext, ClrBlack);
+			GrContextBackgroundSet(&sContext, ClrWhite);
+			GrStringDraw(&sContext, colorGroups[selectedGroup]->colorNames[i], -1, 4, 16 + 10*i, true);
+			GrContextForegroundSet(&sContext, ClrWhite);
+			GrContextBackgroundSet(&sContext, ClrBlack);
+		}
+		else {
+			GrStringDraw(&sContext, colorGroups[selectedGroup]->colorNames[i], -1, 4, 16 + 10*i, true);
+		}
+	}
+}
+
 void menuManager(void const* args) {
 	osEvent event;
-	uint8_t selectedGroup = 0; 
-	uint8_t selectedColor = 0;
+	volatile int8_t selectedGroup = 0; 
+	volatile int8_t selectedColor = 0;
 	
+	osMessagePut(redMsg, rgb_color_r(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
+	osMessagePut(greenMsg, rgb_color_g(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
+	osMessagePut(blueMsg, rgb_color_b(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
 	drawMenu(selectedGroup, selectedColor);
 	
 	while(1) {
 		event = osMessageGet(menuMsg, osWaitForever);
 		if(event.status == osEventMessage) {
-			uart_putChar('0' + (char)event.value.v);
+			switch(event.value.v) {
+				case DOWN:
+					if(++selectedColor >= colorGroups[selectedGroup]->count) {
+						selectedColor = 0;
+					}
+					break;
+					
+				case UP:
+					if(--selectedColor == -1) {
+						selectedColor = colorGroups[selectedGroup]->count - 1;
+					}
+					break;
+					
+				case NEXT_GROUP:
+					selectedColor = 0;
+					if(++selectedGroup == GROUP_COUNT) {
+						selectedGroup = 0;
+					}
+					break;
+					
+				case PREVIOUS_GROUP:
+					selectedColor = 0;
+					if(--selectedGroup == -1) {
+						selectedGroup = GROUP_COUNT - 1;
+					}
+					break;
+					
+				default:
+					// Stuffs?
+					break;
+			}
+			osMessagePut(redMsg, rgb_color_r(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
+			osMessagePut(greenMsg, rgb_color_g(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
+			osMessagePut(blueMsg, rgb_color_b(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
+			drawMenu(selectedGroup, selectedColor);
 		}
-	}
-}
-
-void drawMenu(uint8_t selectedGroup, uint8_t selectedColor) {
-	int i;
-	
-	GrStringDraw(&sContext, colorGroups[selectedGroup]->groupName, -1, 4, 4, true);
-	GrLineDraw(&sContext, 0, 10, 96, 8);
-	for(i = 0; i < colorGroups[selectedGroup]->count; ++i) {
-		GrStringDraw(&sContext, colorGroups[selectedGroup]->colorNames[i], -1, 4, 12 + 8*i, true);
 	}
 }
 
