@@ -13,6 +13,8 @@ void uart_init(uint32_t baudRate, uint32_t dataConfig) {
 	
 	accessReg(UART0CTL) &= 0xfffe; // Desabilita UART (bit 0) antes de aplicar configuracoes
 	
+	accessReg(UART0IM) |= (1<<4); // Habilita interrupcoes de receive
+	
 	// Proximos dois registradores recebem os valores de divisor de baud rate inteiro e fracinado
 	/*
 	Valores calculados sao tabelados de acordo com as seguintes formulas:
@@ -101,4 +103,9 @@ char uart_getChar(void) {
 	while(accessReg(UART0FR) & (1<<4)); // Espera a FIFO de entrada estar vazia
 	c = accessReg(UART0DR); // Pega o valor do reg de dados. Variavel intermediaria por seguranca
 	return(c);
+}
+
+void uart_regIntHandler(void (*handler) (void)) {
+	IntRegister(INT_UART0, handler);
+	IntEnable(INT_UART0);
 }

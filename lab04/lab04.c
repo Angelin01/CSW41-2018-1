@@ -4,11 +4,15 @@
 #include "cmsis_os.h"
 #include "TM4C129.h"
 #include "grlib/grlib.h"
+#include "inc/hw_ints.h"
 
 #include "rgb.h"
 #include "cfaf128x128x16.h"
 #include "uart_lab4.h"
 #include "colors.h"
+
+#include "inc/hw_ints.h"
+#include "driverlib/interrupt.h"
 
 // Contexto da tela
 tContext sContext;
@@ -18,7 +22,7 @@ tContext sContext;
 #define DOWN 1
 #define NEXT_GROUP 2 
 #define PREVIOUS_GROUP 3
-#define INVALID 322
+#define INVALID 99
 
 void init_tela() {
 	GrContextInit(&sContext, &g_sCfaf128x128x16);
@@ -97,7 +101,14 @@ void blueLed(void const* args) {
 }
 
 void menuManager(void const* args) {
+	osEvent event;
 	
+	while(1) {
+		event = osMessageGet(menuMsg, osWaitForever);
+		if(event.status == osEventMessage) {
+			uart_putChar('0' + (char)event.value.v);
+		}
+	}
 }
 
 void uartManager(void const* args) {
@@ -105,6 +116,7 @@ void uartManager(void const* args) {
 	
 	while(1) {
 		event = osMessageGet(uartMsg, osWaitForever);
+		GrStringDraw(&sContext, "uartManagerGOTM", -1, 20, 72, true);
 		if(event.status == osEventMessage) {
 			switch((char)event.value.v) {
 				case 'w':
@@ -141,6 +153,10 @@ osThreadDef(blueLed, osPriorityNormal, 1, 0);
 osThreadDef(menuManager, osPriorityNormal, 1, 0);
 osThreadDef(uartManager, osPriorityHigh, 1, 0);
 
+void uartIntHandler() {
+	osMessagePut(uartMsg, uart_getChar(), osWaitForever);
+}
+
 int main(void) {
 	init_all();
 	
@@ -159,6 +175,8 @@ int main(void) {
 	idBlueLed = osThreadCreate(osThread(blueLed), NULL);
 	idMenuManager = osThreadCreate(osThread(menuManager), NULL);
 	idUartManager = osThreadCreate(osThread(uartManager), NULL);
+	
+	uart_regIntHandler(uartIntHandler);
 	
 	osKernelStart();
 	osDelay(osWaitForever);

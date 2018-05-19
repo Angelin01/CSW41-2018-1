@@ -13,6 +13,8 @@
 #define __UART_LAB4_H__
 
 #include <stdint.h>
+#include "inc/hw_ints.h"
+#include "driverlib/interrupt.h"
 
 // Para facilidade de uso dos registradores
 #define accessReg(x) \
@@ -29,6 +31,7 @@
 #define UART0FBRD  0x4000C028 // Registrador que guarda o valor de fracao do divisor de baudrate
 #define UART0LCRH  0x4000C02C // Registrador de configuracao da serial (data bits, paridade, stop bit, etc)
 #define UART0CC    0x4000CFC8 // Registrador de controle de clock source da UART
+#define UART0IM    0x4000C038 // Registrador de mascaras de interrupcao
 
 // Registradores de flag e transmissao
 #define UART0FR    0x4000C018 // Registrador de flags
@@ -77,5 +80,7 @@ void uart_sendString(char* s);
 
 /* Funcao para receber caracteres BLOQUEANTE */
 char uart_getChar(void);
+
+void uart_regIntHandler(void (*handler) (void));
 
 #endif
