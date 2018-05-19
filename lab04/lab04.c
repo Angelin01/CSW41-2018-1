@@ -116,7 +116,6 @@ void uartManager(void const* args) {
 	
 	while(1) {
 		event = osMessageGet(uartMsg, osWaitForever);
-		GrStringDraw(&sContext, "uartManagerGOTM", -1, 20, 72, true);
 		if(event.status == osEventMessage) {
 			switch((char)event.value.v) {
 				case 'w':
@@ -154,7 +153,7 @@ osThreadDef(menuManager, osPriorityNormal, 1, 0);
 osThreadDef(uartManager, osPriorityHigh, 1, 0);
 
 void uartIntHandler() {
-	osMessagePut(uartMsg, uart_getChar(), osWaitForever);
+	osMessagePut(uartMsg, uart_getChar(), 0);
 }
 
 int main(void) {
