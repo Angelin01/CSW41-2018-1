@@ -101,15 +101,17 @@ void blueLed(void const* args) {
 	}
 }
 
-void drawMenu(uint8_t selectedGroup, uint8_t selectedColor) {
+void drawMenu(uint8_t selectedGroup, uint8_t selectedColor, bool changedGroup) {
 	int i;
 	char strHex[8];
 	static const tRectangle telaInteira = {0, 0, 128, 128};
 	
 	// Limpa tela
-	GrContextForegroundSet(&sContext, ClrBlack);
-	GrRectFill(&sContext, &telaInteira);
-	GrContextForegroundSet(&sContext, ClrWhite);
+	if(changedGroup) {
+		GrContextForegroundSet(&sContext, ClrBlack);
+		GrRectFill(&sContext, &telaInteira);
+		GrContextForegroundSet(&sContext, ClrWhite);
+	}
 	
 	// Printa a cor selecionada em HEX com cor que eh
 	GrContextForegroundSet(&sContext, colorGroups[selectedGroup]->colorValues[selectedColor]);
@@ -138,11 +140,12 @@ void menuManager(void const* args) {
 	osEvent event;
 	volatile int8_t selectedGroup = 0; 
 	volatile int8_t selectedColor = 0;
+	bool changedMenu = true;
 	
 	osMessagePut(redMsg, rgb_color_r(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
 	osMessagePut(greenMsg, rgb_color_g(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
 	osMessagePut(blueMsg, rgb_color_b(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
-	drawMenu(selectedGroup, selectedColor);
+	drawMenu(selectedGroup, selectedColor, changedMenu);
 	
 	while(1) {
 		event = osMessageGet(menuMsg, osWaitForever);
@@ -152,12 +155,14 @@ void menuManager(void const* args) {
 					if(++selectedColor >= colorGroups[selectedGroup]->count) {
 						selectedColor = 0;
 					}
+					changedMenu = false;
 					break;
 					
 				case UP:
 					if(--selectedColor == -1) {
 						selectedColor = colorGroups[selectedGroup]->count - 1;
 					}
+					changedMenu = false;
 					break;
 					
 				case NEXT_GROUP:
@@ -165,6 +170,7 @@ void menuManager(void const* args) {
 					if(++selectedGroup == GROUP_COUNT) {
 						selectedGroup = 0;
 					}
+					changedMenu = true;
 					break;
 					
 				case PREVIOUS_GROUP:
@@ -172,6 +178,7 @@ void menuManager(void const* args) {
 					if(--selectedGroup == -1) {
 						selectedGroup = GROUP_COUNT - 1;
 					}
+					changedMenu = true;
 					break;
 					
 				default:
@@ -181,7 +188,7 @@ void menuManager(void const* args) {
 			osMessagePut(redMsg, rgb_color_r(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
 			osMessagePut(greenMsg, rgb_color_g(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
 			osMessagePut(blueMsg, rgb_color_b(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
-			drawMenu(selectedGroup, selectedColor);
+			drawMenu(selectedGroup, selectedColor, changedMenu);
 		}
 	}
 }
