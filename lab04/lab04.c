@@ -14,8 +14,8 @@
 #include "inc/hw_ints.h"
 #include "driverlib/interrupt.h"
 
-// Contexto da tela
-tContext sContext;
+#define STR_(X) #X
+#define STR(X) STR_(X)
 
 // Outras estruturas
 #define UP 0
@@ -23,6 +23,9 @@ tContext sContext;
 #define NEXT_GROUP 2 
 #define PREVIOUS_GROUP 3
 #define INVALID 99
+
+// Contexto da tela
+tContext sContext;
 
 void init_tela() {
 	GrContextInit(&sContext, &g_sCfaf128x128x16);
@@ -102,12 +105,26 @@ void blueLed(void const* args) {
 
 void menuManager(void const* args) {
 	osEvent event;
+	uint8_t selectedGroup = 0; 
+	uint8_t selectedColor = 0;
+	
+	drawMenu(selectedGroup, selectedColor);
 	
 	while(1) {
 		event = osMessageGet(menuMsg, osWaitForever);
 		if(event.status == osEventMessage) {
 			uart_putChar('0' + (char)event.value.v);
 		}
+	}
+}
+
+void drawMenu(uint8_t selectedGroup, uint8_t selectedColor) {
+	int i;
+	
+	GrStringDraw(&sContext, colorGroups[selectedGroup]->groupName, -1, 4, 4, true);
+	GrLineDraw(&sContext, 0, 10, 96, 8);
+	for(i = 0; i < colorGroups[selectedGroup]->count; ++i) {
+		GrStringDraw(&sContext, colorGroups[selectedGroup]->colorNames[i], -1, 4, 12 + 8*i, true);
 	}
 }
 

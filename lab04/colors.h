@@ -76,7 +76,7 @@ const ColorGroup cyanColors = {
 	{ClrCyan, ClrDarkTurquoise, ClrTurquoise, ClrMediumTurquoise, ClrLightSeaGreen, ClrDarkCyan, ClrTeal, ClrAquamarine, ClrMediumAquamarine, ClrCadetBlue},
 	{"Cyan", "Dark Turquoise", "Turquoise", "Medium Turquoise", "Light Sea Green", "Dark Cyan", "Teal", "Aquamarine", "Medium Aquamarine", "Cadet Blue"},
 	10,
-	"Cyan Colors"
+	"Cyan"
 };
 
 // Orange Colors
@@ -84,7 +84,7 @@ const ColorGroup orangeColors = {
 	{ClrOrangeRed, ClrDarkOrange, ClrOrange},
 	{"Orange Red", "Dark Orange", "Orange"},
 	3,
-	"Orange Colors"
+	"Orange"
 };
 
 // Yellow Colors
@@ -92,7 +92,7 @@ const ColorGroup yellowColors = {
 	{ClrGold, ClrYellow, ClrKhaki},
 	{"Gold", "Yellow", "Khaki"},
 	3,
-	"Yellow Colors"
+	"Yellow"
 };
 
 // Pink Colors
@@ -100,7 +100,7 @@ const ColorGroup pinkColors = {
 	{ClrMediumVioletRed, ClrDeepPink, ClrHotPink, ClrPaleVioletRed, ClrLightPink, ClrPink, ClrLightCoral, ClrIndianRed, ClrCrimson},
 	{"Medium Violet Red", "Deep Pink", "Hot Pink", "Pale Violet Red", "Light Pink", "Pink", "Light Coral", "Indian Red", "Crimson"},
 	9,
-	"Pink Colors"
+	"Pink"
 };
 
 // Red Colors
@@ -108,7 +108,7 @@ const ColorGroup redColors = {
 	{ClrMaroon, ClrDarkRed, ClrFireBrick, ClrBrown, ClrSalmon, ClrDarkSalmon, ClrLightSalmon, ClrCoral, ClrTomato, ClrRed},
 	{"Maroon", "Dark Red", "Fire Brick", "Brown", "Salmon", "Dark Salmon", "Light Salmon", "Coral", "Tomato", "Red"},
 	10,
-	"Red Colors"
+	"Red"
 };
 
 // Grupo geral de cores
