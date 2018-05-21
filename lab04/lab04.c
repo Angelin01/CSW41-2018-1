@@ -141,11 +141,15 @@ void menuManager(void const* args) {
 	volatile int8_t selectedGroup = 0; 
 	volatile int8_t selectedColor = 0;
 	bool changedMenu = true;
+	char returnString[27];
 	
 	osMessagePut(redMsg, rgb_color_r(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
 	osMessagePut(greenMsg, rgb_color_g(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
 	osMessagePut(blueMsg, rgb_color_b(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
 	drawMenu(selectedGroup, selectedColor, changedMenu);
+	
+	sprintf(returnString, "Cor selecionada: 0x%0.6X\n\r", colorGroups[selectedGroup]->colorValues[selectedColor]);
+	uart_sendString(returnString);
 	
 	while(1) {
 		event = osMessageGet(menuMsg, osWaitForever);
@@ -189,6 +193,9 @@ void menuManager(void const* args) {
 			osMessagePut(greenMsg, rgb_color_g(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
 			osMessagePut(blueMsg, rgb_color_b(colorGroups[selectedGroup]->colorValues[selectedColor]), osWaitForever);
 			drawMenu(selectedGroup, selectedColor, changedMenu);
+			
+			sprintf(returnString, "Cor selecionada: 0x%0.6X\n\r", colorGroups[selectedGroup]->colorValues[selectedColor]);
+			uart_sendString(returnString);
 		}
 	}
 }

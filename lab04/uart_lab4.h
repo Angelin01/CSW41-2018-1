@@ -5,10 +5,6 @@
 * Ver secao "16.4 Initialization and Configuration"
 */
 
-// DELETAR DEPOIS
-// VIDEO REFERENCIA
-// https://www.youtube.com/watch?v=Vy-k7u5djM4&t=20s
-
 #ifndef __UART_LAB4_H__
 #define __UART_LAB4_H__
 
