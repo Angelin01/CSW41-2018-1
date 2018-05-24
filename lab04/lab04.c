@@ -105,6 +105,7 @@ void drawMenu(uint8_t selectedGroup, uint8_t selectedColor, bool changedGroup) {
 	int i;
 	char strHex[8];
 	static const tRectangle telaInteira = {0, 0, 128, 128};
+	static const tRectangle corRect = {2, 118, 126, 126};
 	
 	// Limpa tela
 	if(changedGroup) {
@@ -113,9 +114,10 @@ void drawMenu(uint8_t selectedGroup, uint8_t selectedColor, bool changedGroup) {
 		GrContextForegroundSet(&sContext, ClrWhite);
 	}
 	
-	// Printa a cor selecionada em HEX com cor que eh
+	// Printa a cor selecionada em HEX com cor que eh e um quadrado para melhor visualizacao
 	GrContextForegroundSet(&sContext, colorGroups[selectedGroup]->colorValues[selectedColor]);
 	sprintf(strHex, "0x%0.6X", colorGroups[selectedGroup]->colorValues[selectedColor]);
+	GrRectFill(&sContext, &corRect);
 	GrStringDraw(&sContext, strHex, -1, 80, 4, true);
 	GrContextForegroundSet(&sContext, ClrWhite);
 	
