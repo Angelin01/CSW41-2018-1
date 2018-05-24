@@ -22,6 +22,8 @@
 #define PREVIOUS_GROUP 3
 #define INVALID 99
 
+#define INTENSITY 0.15
+
 // Contexto da tela
 tContext sContext;
 
@@ -74,7 +76,7 @@ void redLed(void const* args) {
 	while(1) {
 		event = osMessageGet(redMsg, osWaitForever);
 		if(event.status == osEventMessage) {
-			rgb_write_r((uint8_t) event.value.v);
+			rgb_write_r((uint8_t) (INTENSITY * event.value.v));
 		}
 	}
 }
@@ -85,7 +87,7 @@ void greenLed(void const* args) {
 	while(1) {
 		event = osMessageGet(greenMsg, osWaitForever);
 		if(event.status == osEventMessage) {
-			rgb_write_g((uint8_t) event.value.v);
+			rgb_write_g((uint8_t) (INTENSITY * event.value.v));
 		}
 	}
 }
@@ -96,7 +98,7 @@ void blueLed(void const* args) {
 	while(1) {
 		event = osMessageGet(blueMsg, osWaitForever);
 		if(event.status == osEventMessage) {
-			rgb_write_b((uint8_t) event.value.v);
+			rgb_write_b((uint8_t) (INTENSITY * event.value.v));
 		}
 	}
 }
