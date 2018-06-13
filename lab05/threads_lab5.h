@@ -50,12 +50,24 @@ typedef enum threadNumber {
 typedef struct threadStuffs {
 	int16_t staticPrio;
     uint32_t startTime;
+	uint32_t endTime;
 	const uint32_t maxTicks;
 	uint32_t delay;
     float progress;
     State state;
 	osThreadId id;
+	uint32_t faultCount;
 } threadStuffs;
+
+// Threads (0 = A, 1 = B, etc.)
+threadStuffs threads[6] = {
+	{  10, 0, 0, maxTicksA, 0, 0.0f, waiting, 0, 0},
+	{   0, 0, 0, maxTicksB, 0, 0.0f, waiting, 0, 0},
+	{ -30, 0, 0, maxTicksC, 0, 0.0f, waiting, 0, 0},
+	{   0, 0, 0, maxTicksD, 0, 0.0f, waiting, 0, 0},
+	{ -30, 0, 0, maxTicksE, 0, 0.0f, waiting, 0, 0},
+	{-100, 0, 0, maxTicksF, 0, 0.0f, waiting, 0, 0}
+};
 
 void threadA(void);
 void threadB(void);

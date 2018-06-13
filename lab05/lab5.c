@@ -31,25 +31,6 @@ osThreadId mainId;
 // ===== Threads =====
 // ===================
 
-// Threads (0 = A, 1 = B, etc.)
-threadStuffs threads[6] = {
-	{  10, 0, maxTicksA, 0, 0.0f, waiting, 0},
-	{   0, 0, maxTicksB, 0, 0.0f, waiting, 0},
-	{ -30, 0, maxTicksC, 0, 0.0f, waiting, 0},
-	{   0, 0, maxTicksD, 0, 0.0f, waiting, 0},
-	{ -30, 0, maxTicksE, 0, 0.0f, waiting, 0},
-	{-100, 0, maxTicksF, 0, 0.0f, waiting, 0}
-};
-
-typedef enum threadNumber {
-	A = 0,
-	B,
-	C,
-	D,
-	E,
-	F
-} threadNumber;
-
 osThreadDef(threadA, osPriorityNormal, 1, 0);
 osThreadDef(threadB, osPriorityNormal, 1, 0);
 osThreadDef(threadC, osPriorityNormal, 1, 0);
@@ -108,7 +89,9 @@ osTimerDef(timerMain, mainTimerHandler);
 int main(void) {
 	int32_t lowestLaxityFactor;
 	int32_t tmpLaxity;
+	uint32_t tmpMaxTime;
 	threadStuffs* lowestLaxityThread;
+	State previousStates[6] = {waiting, waiting, waiting, waiting, waiting, waiting};
 	int i;
 	
 	osTimerId idMainTimer;
@@ -162,14 +145,43 @@ int main(void) {
 		
 		lowestLaxityFactor = 1000; // Deve ser maior que 300
 		for(i = 0; i < 6; ++i) {
-			if(threads[i].state != waiting) {
-				tmpLaxity = ((threads[i].startTime + threads[i].maxTicks - osKernelSysTick())/threads[i].maxTicks)*200 + threads[i].staticPrio; // Somará até +200 a prioridade de acordo com tempo restante
+			tmpMaxTime = threads[i].startTime + threads[i].maxTicks;
+			if(threads[i].state != waiting) { // Se a thread nao esta dormindo, fazer coisas de scheduling
+				if(threads[i].staticPrio <= -100 && osKernelSysTick() > tmpMaxTime) {
+					++threads[i].faultCount;
+					// MASTER FAULT
+					// HCF
+					// PICNIC
+					// PRESS THE RED BUTTON
+				}
+				
+				tmpLaxity = ((tmpMaxTime - osKernelSysTick())/threads[i].maxTicks)*200 + threads[i].staticPrio; // Somara ate +200 a prioridade de acordo com tempo restante
 				if(tmpLaxity < lowestLaxityFactor) {
 					lowestLaxityFactor = tmpLaxity;
 					lowestLaxityThread = &threads[i];
 				}
 				osThreadSetPriority(threads[i].id, osPriorityLow);
+				previousStates[i] = threads[i].state;
 				threads[i].state = ready;
+			}
+			else if (previousStates[i] != waiting) {
+				if(threads[i].endTime > tmpMaxTime) {
+					++threads[i].faultCount;
+					if(threads[i].staticPrio <= -100) {
+						// MASTER FAULT
+						// HCF
+						// PICNIC
+						// PRESS THE RED BUTTON
+					}
+					else {
+						threads[i].staticPrio -= 5;
+					}
+				}
+				else if((threads[i].endTime - threads[i].startTime)/2 < threads[i].maxTicks) {
+					++threads[i].faultCount;
+					threads[i].staticPrio += 5;
+				}
+				previousStates[i] = waiting;
 			}
 		}
 		
