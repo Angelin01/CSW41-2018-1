@@ -46,13 +46,9 @@ void threadC(void) {
 
 void threadD(void) {
 	volatile double total;
-	const float fact3 = 3*2;
-	const float fact5 = 5*4*fact3;
-	const float fact7 = 7*6*fact5;
-	const float fact9 = 9*8*fact7;
 	
 	while(1) {
-		total = 1 + 5/fact3 + 5/fact5 + 5/fact7	+ 5/fact9;	
+		total = 1 + 5/(3*2) + 5/(5*4*3*2) + 5/(7*6*5*4*3*2)	+ 5/(9*8*7*6*5*4*3*2);	
 	}
 }
 
