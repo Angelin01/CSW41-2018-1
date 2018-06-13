@@ -38,6 +38,15 @@ typedef enum State {
 // ===== Estruturas com coisas das threads =====
 // =============================================
 
+typedef enum threadNumber {
+	A = 0,
+	B,
+	C,
+	D,
+	E,
+	F
+} threadNumber;
+
 typedef struct threadStuffs {
 	int16_t staticPrio;
     uint32_t startTime;

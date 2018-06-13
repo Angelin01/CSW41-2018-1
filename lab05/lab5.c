@@ -148,7 +148,6 @@ int main(void) {
 	osTimerStart(timerD, 1000);
 	osTimerStart(timerE, 167);
 	osTimerStart(timerF, 100);
-	osTimerStart(idMainTimer, 1);
 	
 	osKernelStart();
 	
@@ -159,18 +158,25 @@ int main(void) {
 	osThreadSetPriority(mainId, osPriorityRealtime);
 	
 	while(1) {
-		lowestLaxityFactor = -10000; // Deve ser menor que -300
+		osTimerStop(idMainTimer);
+		
+		lowestLaxityFactor = 1000; // Deve ser maior que 300
 		for(i = 0; i < 6; ++i) {
-			tmpLaxity = ((threads[i].startTime + threads[i].maxTicks - osKernelSysTick())/threads[i].maxTicks)*200 + threads[i].staticPrio;
-			if(tmpLaxity < lowestLaxityFactor) {
-				lowestLaxityFactor = tmpLaxity;
-				lowestLaxityThread = &threads[i];
+			if(threads[i].state != waiting) {
+				tmpLaxity = ((threads[i].startTime + threads[i].maxTicks - osKernelSysTick())/threads[i].maxTicks)*200 + threads[i].staticPrio; // Somará até +200 a prioridade de acordo com tempo restante
+				if(tmpLaxity < lowestLaxityFactor) {
+					lowestLaxityFactor = tmpLaxity;
+					lowestLaxityThread = &threads[i];
+				}
+				osThreadSetPriority(threads[i].id, osPriorityLow);
+				threads[i].state = ready;
 			}
-			osThreadSetPriority(threads[i].id, osPriorityLow);
 		}
 		
 		osThreadSetPriority(lowestLaxityThread->id, osPriorityHigh);
+		lowestLaxityThread->state = running;
 		
+		osTimerStart(idMainTimer, 1);
 		osSignalWait(1, osWaitForever);
 	}
 }
