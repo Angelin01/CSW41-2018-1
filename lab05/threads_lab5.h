@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "cmsis_os.h"
 
 #ifndef __THREADS_LAB5_H__
 #define __THREADS_LAB5_H__
@@ -40,11 +41,13 @@ typedef enum State {
 typedef struct threadStuffs {
 	int8_t staticPrio;
 	int16_t currentPrio;
-	uint32_t maxTime;
+	uint32_t endTime;
     uint32_t startTime;
+	const uint32_t maxTicks;
 	uint32_t delay;
     float progress;
     State state;
+	osThreadId id;
 } threadStuffs;
 
 void threadA(void);

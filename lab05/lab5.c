@@ -17,11 +17,21 @@
 // Suprimir erros de funcoes declaradas mas nao referenciadas das libs
 #pragma diag_suppress 177
 
+// Desabilita round robin de threads
+#define OS_ROBIN 0
+
 // Contexto da tela
 tContext sContext;
 
-// IDs das threads
-osThreadId idA, idB, idC, idD, idE, idF;
+// Threads (0 = A, 1 = B, etc.)
+threadStuffs threads[6] = {
+	{  10,    10, 0, 0, maxTicksA, 0, 0.0f, waiting, 0},
+	{   0,     0, 0, 0, maxTicksB, 0, 0.0f, waiting, 0},
+	{ -30,   -30, 0, 0, maxTicksC, 0, 0.0f, waiting, 0},
+	{   0,     0, 0, 0, maxTicksD, 0, 0.0f, waiting, 0},
+	{ -30,   -30, 0, 0, maxTicksE, 0, 0.0f, waiting, 0},
+	{ -100, -100, 0, 0, maxTicksF, 0, 0.0f, waiting, 0}
+};
 
 void init_tela() {
 	GrContextInit(&sContext, &g_sCfaf128x128x16);
@@ -47,27 +57,17 @@ osThreadDef(threadE, osPriorityNormal, 1, 0);
 osThreadDef(threadF, osPriorityNormal, 1, 0);
 
 int main(void) {
-	uint32_t startTime, stopTime;
-	volatile double total;
-	double pot, fact;
-	int i;
-	char yay[10];
-	const float fact3 = 3*2;
-	const float fact5 = 5*4*fact3;
-	const float fact7 = 7*6*fact5;
-	const float fact9 = 9*8*fact7;
-	
 	init_all();
 	
 	osKernelInitialize();
 	
 	// Criando threads
-	idA = osThreadCreate(osThread(threadA), NULL);
-	idB = osThreadCreate(osThread(threadB), NULL);
-	idC = osThreadCreate(osThread(threadC), NULL);
-	idD = osThreadCreate(osThread(threadD), NULL);
-	idE = osThreadCreate(osThread(threadE), NULL);
-	idF = osThreadCreate(osThread(threadF), NULL);
+	threads[0].id = osThreadCreate(osThread(threadA), NULL);
+	threads[1].id = osThreadCreate(osThread(threadB), NULL);
+	threads[2].id = osThreadCreate(osThread(threadC), NULL);
+	threads[3].id = osThreadCreate(osThread(threadD), NULL);
+	threads[4].id = osThreadCreate(osThread(threadE), NULL);
+	threads[5].id = osThreadCreate(osThread(threadF), NULL);
 	
 	osKernelStart();
 	osDelay(osWaitForever);
