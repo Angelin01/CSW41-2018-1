@@ -69,13 +69,6 @@ threadStuffs threads[6] = {
 	{-100, 0, 0, maxTicksF, 0, 0.0f, waiting, 0, 0}
 };
 
-void threadA(void);
-void threadB(void);
-void threadC(void);
-void threadD(void);
-void threadE(void);
-void threadF(void);
-
 /**
 * Ha de calcular os tempos dos timers
 * Considerando que o tempo do timer se da em ticks

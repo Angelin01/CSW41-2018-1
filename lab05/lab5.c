@@ -31,12 +31,107 @@ osThreadId mainId;
 // ===== Threads =====
 // ===================
 
+void threadA() {
+	volatile double total;
+	int i;
+	
+	while(1) {
+		total = 0;
+		
+		for(i = 0; i < 256; ++i) {
+			total += i + (i + 2);
+		}
+		
+		osSignalSet(mainId, 1);
+		osSignalWait(1, osWaitForever);
+	}
+}
+
+void threadB() {
+	volatile double total;
+	double pot, fact;
+	int i;
+	
+	while(1) {
+		total = 0;
+		pot = 1;
+		fact = 1;
+		
+		for(i = 1; i < 16; ++i) {
+			pot *= 2;
+			fact *= i;
+			total += pot/fact;
+		}
+		osSignalSet(mainId, 1);
+		osSignalWait(1, osWaitForever);
+	}
+}
+
+void threadC() {
+	volatile double total;
+	int i;
+	
+	while(1) {
+		total = 0;
+		
+		for(i = 1; i < 72; ++i) {
+			total += (i + 1)/i;
+		}
+		osSignalSet(mainId, 1);
+		osSignalWait(1, osWaitForever);
+	}
+}
+
+void threadD() {
+	volatile double total;
+	
+	while(1) {
+		total = 1 + 5/(3*2) + 5/(5*4*3*2) + 5/(7*6*5*4*3*2)	+ 5/(9*8*7*6*5*4*3*2);
+		osSignalSet(mainId, 1);
+		osSignalWait(1, osWaitForever);
+	}
+}
+
+void threadE() {
+	volatile double total;
+	int i;
+	
+	while(1) {
+		total = 0;
+		
+		for(i = 1; i < 100; ++i) {
+			total += i*PI*PI;
+		}
+		osSignalSet(mainId, 1);
+		osSignalWait(1, osWaitForever);
+	}
+}
+
+void threadF() {
+	volatile double total;
+	double pot;
+	int i;
+	
+	while(1) {
+		total = 0;
+		pot = 1;
+		
+		for(i = 1; i < 128; ++i) {
+			pot *= 2;
+			total += (i*i*i)/pot;
+		}
+		osSignalSet(mainId, 1);
+		osSignalWait(1, osWaitForever);
+	}
+}
+
 osThreadDef(threadA, osPriorityNormal, 1, 0);
 osThreadDef(threadB, osPriorityNormal, 1, 0);
 osThreadDef(threadC, osPriorityNormal, 1, 0);
 osThreadDef(threadD, osPriorityNormal, 1, 0);
 osThreadDef(threadE, osPriorityNormal, 1, 0);
 osThreadDef(threadF, osPriorityNormal, 1, 0);
+
 
 // =================
 // ===== Inits =====
