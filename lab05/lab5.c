@@ -23,15 +23,42 @@
 // Contexto da tela
 tContext sContext;
 
+// ID da thread main
+osThreadId mainId;
+
+// ===================
+// ===== Threads =====
+// ===================
+
 // Threads (0 = A, 1 = B, etc.)
 threadStuffs threads[6] = {
-	{  10,    10, 0, 0, maxTicksA, 0, 0.0f, waiting, 0},
-	{   0,     0, 0, 0, maxTicksB, 0, 0.0f, waiting, 0},
-	{ -30,   -30, 0, 0, maxTicksC, 0, 0.0f, waiting, 0},
-	{   0,     0, 0, 0, maxTicksD, 0, 0.0f, waiting, 0},
-	{ -30,   -30, 0, 0, maxTicksE, 0, 0.0f, waiting, 0},
-	{ -100, -100, 0, 0, maxTicksF, 0, 0.0f, waiting, 0}
+	{  10,    10, 0, 0, 0.0f, waiting, 0},
+	{   0,     0, 0, 0, 0.0f, waiting, 0},
+	{ -30,   -30, 0, 0, 0.0f, waiting, 0},
+	{   0,     0, 0, 0, 0.0f, waiting, 0},
+	{ -30,   -30, 0, 0, 0.0f, waiting, 0},
+	{ -100, -100, 0, 0, 0.0f, waiting, 0}
 };
+
+typedef enum threadNumber {
+	A = 0,
+	B,
+	C,
+	D,
+	E,
+	F
+} threadNumber;
+
+osThreadDef(threadA, osPriorityNormal, 1, 0);
+osThreadDef(threadB, osPriorityNormal, 1, 0);
+osThreadDef(threadC, osPriorityNormal, 1, 0);
+osThreadDef(threadD, osPriorityNormal, 1, 0);
+osThreadDef(threadE, osPriorityNormal, 1, 0);
+osThreadDef(threadF, osPriorityNormal, 1, 0);
+
+// =================
+// ===== Inits =====
+// =================
 
 void init_tela() {
 	GrContextInit(&sContext, &g_sCfaf128x128x16);
@@ -49,26 +76,78 @@ void init_all() {
 	init_tela();
 }
 
-osThreadDef(threadA, osPriorityNormal, 1, 0);
-osThreadDef(threadB, osPriorityNormal, 1, 0);
-osThreadDef(threadC, osPriorityNormal, 1, 0);
-osThreadDef(threadD, osPriorityNormal, 1, 0);
-osThreadDef(threadE, osPriorityNormal, 1, 0);
-osThreadDef(threadF, osPriorityNormal, 1, 0);
+// =============================
+// ===== Timers e handler ======
+// =============================
+
+void threadTimerHandler(void const* t) {
+	threadNumber n = (threadNumber) n;
+	threads[n].state = ready;
+	threads[n].progress = 0.0f;
+	threads[n].startTime = osKernelSysTick();
+	threads[n].delay = 0;
+	osSignalSet(threads[n].id, 1);
+}
+
+void mainTimerHandler() {
+	osSignalSet(mainId, 1);
+}
+
+// Passa como argumento a thread no osTimerCreate
+osTimerDef(timerA, threadTimerHandler);
+osTimerDef(timerB, threadTimerHandler);
+osTimerDef(timerC, threadTimerHandler);
+osTimerDef(timerD, threadTimerHandler);
+osTimerDef(timerE, threadTimerHandler);
+osTimerDef(timerF, threadTimerHandler);
+
+osTimerDef(timerMain, mainTimerHandler);
+
 
 int main(void) {
-	init_all();
+	osTimerId idMainTimer;
+	osTimerId timerA;
+	osTimerId timerB;
+	osTimerId timerC;
+	osTimerId timerD;
+	osTimerId timerE;
+	osTimerId timerF;
 	
+	init_all();
 	osKernelInitialize();
 	
+	mainId = osThreadGetId();
+	
 	// Criando threads
-	threads[0].id = osThreadCreate(osThread(threadA), NULL);
-	threads[1].id = osThreadCreate(osThread(threadB), NULL);
-	threads[2].id = osThreadCreate(osThread(threadC), NULL);
-	threads[3].id = osThreadCreate(osThread(threadD), NULL);
-	threads[4].id = osThreadCreate(osThread(threadE), NULL);
-	threads[5].id = osThreadCreate(osThread(threadF), NULL);
+	threads[A].id = osThreadCreate(osThread(threadA), NULL);
+	threads[B].id = osThreadCreate(osThread(threadB), NULL);
+	threads[C].id = osThreadCreate(osThread(threadC), NULL);
+	threads[D].id = osThreadCreate(osThread(threadD), NULL);
+	threads[E].id = osThreadCreate(osThread(threadE), NULL);
+	threads[F].id = osThreadCreate(osThread(threadF), NULL);
+	
+	// Criando timers
+	timerA = osTimerCreate(osTimer(timerA), osTimerPeriodic, (void *)A);
+	timerB = osTimerCreate(osTimer(timerB), osTimerPeriodic, (void *)B);
+	timerC = osTimerCreate(osTimer(timerC), osTimerPeriodic, (void *)C);
+	timerD = osTimerCreate(osTimer(timerD), osTimerPeriodic, (void *)D);
+	timerE = osTimerCreate(osTimer(timerE), osTimerPeriodic, (void *)E);
+	timerF = osTimerCreate(osTimer(timerF), osTimerPeriodic, (void *)F);
+	idMainTimer = osTimerCreate(osTimer(timerMain), osTimerPeriodic, NULL);
+	
+	// Iniciando timers
+	osTimerStart(timerA, 125);
+	osTimerStart(timerB, 500);
+	osTimerStart(timerC, 200);
+	osTimerStart(timerD, 1000);
+	osTimerStart(timerE, 167);
+	osTimerStart(timerF, 100);
+	osTimerStart(idMainTimer, 1);
 	
 	osKernelStart();
-	osDelay(osWaitForever);
+	
+	while(1) {
+		// Do scheduling stuff
+		osSignalWait(1, osWaitForever);
+	}
 }

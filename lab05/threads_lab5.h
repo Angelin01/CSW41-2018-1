@@ -41,9 +41,7 @@ typedef enum State {
 typedef struct threadStuffs {
 	int8_t staticPrio;
 	int16_t currentPrio;
-	uint32_t endTime;
     uint32_t startTime;
-	const uint32_t maxTicks;
 	uint32_t delay;
     float progress;
     State state;
