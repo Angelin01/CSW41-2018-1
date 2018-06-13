@@ -40,6 +40,7 @@ void threadA() {
 		
 		for(i = 0; i < 256; ++i) {
 			total += i + (i + 2);
+			threads[A].progress = (float) i/256;
 		}
 		
 		osSignalSet(mainId, 1);
@@ -61,6 +62,7 @@ void threadB() {
 			pot *= 2;
 			fact *= i;
 			total += pot/fact;
+			threads[B].progress = (float) i/16;
 		}
 		osSignalSet(mainId, 1);
 		osSignalWait(1, osWaitForever);
@@ -76,6 +78,7 @@ void threadC() {
 		
 		for(i = 1; i < 72; ++i) {
 			total += (i + 1)/i;
+			threads[C].progress = (float) i/72;
 		}
 		osSignalSet(mainId, 1);
 		osSignalWait(1, osWaitForever);
@@ -87,6 +90,7 @@ void threadD() {
 	
 	while(1) {
 		total = 1 + 5/(3*2) + 5/(5*4*3*2) + 5/(7*6*5*4*3*2)	+ 5/(9*8*7*6*5*4*3*2);
+		threads[D].progress = (float) 1;
 		osSignalSet(mainId, 1);
 		osSignalWait(1, osWaitForever);
 	}
@@ -101,6 +105,7 @@ void threadE() {
 		
 		for(i = 1; i < 100; ++i) {
 			total += i*PI*PI;
+			threads[E].progress = (float) i/100;
 		}
 		osSignalSet(mainId, 1);
 		osSignalWait(1, osWaitForever);
@@ -119,6 +124,7 @@ void threadF() {
 		for(i = 1; i < 128; ++i) {
 			pot *= 2;
 			total += (i*i*i)/pot;
+			threads[F].progress = (float) i/128;
 		}
 		osSignalSet(mainId, 1);
 		osSignalWait(1, osWaitForever);
@@ -242,12 +248,17 @@ int main(void) {
 		for(i = 0; i < 6; ++i) {
 			tmpMaxTime = threads[i].startTime + threads[i].maxTicks;
 			if(threads[i].state != waiting) { // Se a thread nao esta dormindo, fazer coisas de scheduling
-				if(threads[i].staticPrio <= -100 && osKernelSysTick() > tmpMaxTime) {
-					++threads[i].faultCount;
-					// MASTER FAULT
-					// HCF
-					// PICNIC
-					// PRESS THE RED BUTTON
+				if(osKernelSysTick() > tmpMaxTime) {
+					if(threads[i].staticPrio <= -100) {
+						++threads[i].faultCount;
+						// MASTER FAULT
+						// HCF
+						// PICNIC
+						// PRESS THE RED BUTTON
+					}
+					else {
+						threads[i].delay = tmpMaxTime - osKernelSysTick();
+					}
 				}
 				
 				tmpLaxity = ((tmpMaxTime - osKernelSysTick())/threads[i].maxTicks)*200 + threads[i].staticPrio; // Somara ate +200 a prioridade de acordo com tempo restante
