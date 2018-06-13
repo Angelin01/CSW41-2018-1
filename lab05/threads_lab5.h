@@ -16,7 +16,7 @@
 * E: 38413
 * F: 56390
 *
-* Tempo maximo de execucao sera o tempo tabelado a cima vezes (1 + deadline)
+* Tempo maximo de execucao sera o tempo tabelado acima vezes (1 + deadline)
 * Os tempos, arrendodados para baixo, foram colocados nos defines abaixo:
 **/
 
