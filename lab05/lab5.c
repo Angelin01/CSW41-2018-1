@@ -14,6 +14,7 @@
 #include "inc/hw_ints.h"
 #include "driverlib/interrupt.h"
 
+
 // Suprimir erros de funcoes declaradas mas nao referenciadas das libs
 #pragma diag_suppress 177
 
@@ -32,12 +33,12 @@ osThreadId mainId;
 
 // Threads (0 = A, 1 = B, etc.)
 threadStuffs threads[6] = {
-	{  10,    10, 0, 0, 0.0f, waiting, 0},
-	{   0,     0, 0, 0, 0.0f, waiting, 0},
-	{ -30,   -30, 0, 0, 0.0f, waiting, 0},
-	{   0,     0, 0, 0, 0.0f, waiting, 0},
-	{ -30,   -30, 0, 0, 0.0f, waiting, 0},
-	{ -100, -100, 0, 0, 0.0f, waiting, 0}
+	{  10, 0, maxTicksA, 0, 0.0f, waiting, 0},
+	{   0, 0, maxTicksB, 0, 0.0f, waiting, 0},
+	{ -30, 0, maxTicksC, 0, 0.0f, waiting, 0},
+	{   0, 0, maxTicksD, 0, 0.0f, waiting, 0},
+	{ -30, 0, maxTicksE, 0, 0.0f, waiting, 0},
+	{-100, 0, maxTicksF, 0, 0.0f, waiting, 0}
 };
 
 typedef enum threadNumber {
@@ -105,6 +106,11 @@ osTimerDef(timerMain, mainTimerHandler);
 
 
 int main(void) {
+	int32_t lowestLaxityFactor;
+	int32_t tmpLaxity;
+	threadStuffs* lowestLaxityThread;
+	int i;
+	
 	osTimerId idMainTimer;
 	osTimerId timerA;
 	osTimerId timerB;
@@ -146,8 +152,25 @@ int main(void) {
 	
 	osKernelStart();
 	
+	// =====================
+	// ===== SCHEDULER =====
+	// =====================
+	
+	osThreadSetPriority(mainId, osPriorityRealtime);
+	
 	while(1) {
-		// Do scheduling stuff
+		lowestLaxityFactor = -10000; // Deve ser menor que -300
+		for(i = 0; i < 6; ++i) {
+			tmpLaxity = ((threads[i].startTime + threads[i].maxTicks - osKernelSysTick())/threads[i].maxTicks)*200 + threads[i].staticPrio;
+			if(tmpLaxity < lowestLaxityFactor) {
+				lowestLaxityFactor = tmpLaxity;
+				lowestLaxityThread = &threads[i];
+			}
+			osThreadSetPriority(threads[i].id, osPriorityLow);
+		}
+		
+		osThreadSetPriority(lowestLaxityThread->id, osPriorityHigh);
+		
 		osSignalWait(1, osWaitForever);
 	}
 }
