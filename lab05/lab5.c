@@ -21,12 +21,13 @@
 // Desabilita round robin de threads
 #define OS_ROBIN 0
 
+#define currentTick osKernelSysTick()
+
 // Contexto da tela
 tContext sContext;
 
 // ID da thread main
 osThreadId mainId;
-
 // ===================
 // ===== Threads =====
 // ===================
@@ -36,6 +37,7 @@ void threadA() {
 	int i;
 	
 	while(1) {
+		osSignalWait(1, osWaitForever);
 		total = 0;
 		
 		for(i = 0; i < 256; ++i) {
@@ -44,7 +46,8 @@ void threadA() {
 		}
 		
 		osSignalSet(mainId, 1);
-		osSignalWait(1, osWaitForever);
+		threads[A].state = waiting;
+		threads[A].endTime = currentTick;
 	}
 }
 
@@ -54,6 +57,7 @@ void threadB() {
 	int i;
 	
 	while(1) {
+		osSignalWait(1, osWaitForever);
 		total = 0;
 		pot = 1;
 		fact = 1;
@@ -65,7 +69,8 @@ void threadB() {
 			threads[B].progress = (float) i/16;
 		}
 		osSignalSet(mainId, 1);
-		osSignalWait(1, osWaitForever);
+		threads[B].state = waiting;
+		threads[B].endTime = currentTick;
 	}
 }
 
@@ -74,6 +79,7 @@ void threadC() {
 	int i;
 	
 	while(1) {
+		osSignalWait(1, osWaitForever);
 		total = 0;
 		
 		for(i = 1; i < 72; ++i) {
@@ -81,7 +87,8 @@ void threadC() {
 			threads[C].progress = (float) i/72;
 		}
 		osSignalSet(mainId, 1);
-		osSignalWait(1, osWaitForever);
+		threads[C].state = waiting;
+		threads[C].endTime = currentTick;
 	}
 }
 
@@ -92,6 +99,8 @@ void threadD() {
 		total = 1 + 5/(3*2) + 5/(5*4*3*2) + 5/(7*6*5*4*3*2)	+ 5/(9*8*7*6*5*4*3*2);
 		threads[D].progress = (float) 1;
 		osSignalSet(mainId, 1);
+		threads[D].state = waiting;
+		threads[D].endTime = currentTick;
 		osSignalWait(1, osWaitForever);
 	}
 }
@@ -101,6 +110,7 @@ void threadE() {
 	int i;
 	
 	while(1) {
+		osSignalWait(1, osWaitForever);
 		total = 0;
 		
 		for(i = 1; i < 100; ++i) {
@@ -108,7 +118,8 @@ void threadE() {
 			threads[E].progress = (float) i/100;
 		}
 		osSignalSet(mainId, 1);
-		osSignalWait(1, osWaitForever);
+		threads[E].state = waiting;
+		threads[E].endTime = currentTick;
 	}
 }
 
@@ -118,6 +129,7 @@ void threadF() {
 	int i;
 	
 	while(1) {
+		osSignalWait(1, osWaitForever);
 		total = 0;
 		pot = 1;
 		
@@ -127,16 +139,17 @@ void threadF() {
 			threads[F].progress = (float) i/128;
 		}
 		osSignalSet(mainId, 1);
-		osSignalWait(1, osWaitForever);
+		threads[F].state = waiting;
+		threads[F].endTime = currentTick;
 	}
 }
 
-osThreadDef(threadA, osPriorityNormal, 1, 0);
-osThreadDef(threadB, osPriorityNormal, 1, 0);
-osThreadDef(threadC, osPriorityNormal, 1, 0);
-osThreadDef(threadD, osPriorityNormal, 1, 0);
-osThreadDef(threadE, osPriorityNormal, 1, 0);
-osThreadDef(threadF, osPriorityNormal, 1, 0);
+osThreadDef(threadA, osPriorityLow, 1, 0);
+osThreadDef(threadB, osPriorityLow, 1, 0);
+osThreadDef(threadC, osPriorityLow, 1, 0);
+osThreadDef(threadD, osPriorityLow, 1, 0);
+osThreadDef(threadE, osPriorityLow, 1, 0);
+osThreadDef(threadF, osPriorityLow, 1, 0);
 
 
 // =================
@@ -165,12 +178,15 @@ void init_all() {
 
 void threadTimerHandler(void const* t) {
 	threads[(threadNumber) t].state = ready;
-	threads[(threadNumber) t].startTime = osKernelSysTick();
+	//threads[(threadNumber) t].progress = 0.0f;
+	threads[(threadNumber) t].startTime = currentTick;
+	threads[(threadNumber) t].delay = 0;
 	osSignalSet(threads[(threadNumber) t].id, 1);
 }
 
 void mainTimerHandler() {
 	osSignalSet(mainId, 1);
+	osThreadYield();
 }
 
 // Passa como argumento a thread no osTimerCreate
@@ -183,20 +199,20 @@ osTimerDef(timerF, threadTimerHandler);
 
 osTimerDef(timerMain, mainTimerHandler);
 
-
 void masterFault(threadNumber i) {
 	GrStringDraw(&sContext, "MASTER FAULT", -1, 5, i*10 + 5, 1);
 	while(1);
 }
+char toDisplay[10];
 
 int main(void) {
 	int32_t lowestLaxityFactor;
-	int32_t tmpLaxity;
+	uint32_t tmpLaxity;
 	uint32_t tmpMaxTime;
 	uint32_t schedulerRuns;
 	int lowestLaxityThread;
 	State previousStates[6] = {waiting, waiting, waiting, waiting, waiting, waiting};
-	char toDisplay[10];
+
 	int i;
 	
 	osTimerId idMainTimer;
@@ -220,7 +236,6 @@ int main(void) {
 	threads[E].id = osThreadCreate(osThread(threadE), NULL);
 	threads[F].id = osThreadCreate(osThread(threadF), NULL);
 	
-	
 	// Criando timers
 	idTimerA = osTimerCreate(osTimer(timerA), osTimerPeriodic, (void *)A);
 	idTimerB = osTimerCreate(osTimer(timerB), osTimerPeriodic, (void *)B);
@@ -229,8 +244,6 @@ int main(void) {
 	idTimerE = osTimerCreate(osTimer(timerE), osTimerPeriodic, (void *)E);
 	idTimerF = osTimerCreate(osTimer(timerF), osTimerPeriodic, (void *)F);
 	idMainTimer = osTimerCreate(osTimer(timerMain), osTimerPeriodic, NULL);
-	
-	
 	
 	osKernelStart();
 	
@@ -246,16 +259,17 @@ int main(void) {
 	// ===== SCHEDULER =====
 	// =====================
 	
-	//osThreadSetPriority(mainId, osPriorityHigh);
+	osThreadSetPriority(mainId, osPriorityHigh);
 	
 	for(schedulerRuns = 0; true; ++schedulerRuns) {
 		osTimerStop(idMainTimer);
 		
 		lowestLaxityFactor = 1000; // Deve ser maior que 300
+		lowestLaxityThread = -1;
 		for(i = 0; i < 6; ++i) {
 			tmpMaxTime = threads[i].startTime + threads[i].maxTicks;
 			if(threads[i].state != waiting) { // Se a thread nao esta dormindo, fazer coisas de scheduling
-				if(osKernelSysTick() > tmpMaxTime) {
+				if(currentTick > tmpMaxTime) {
 					if(threads[i].staticPrio <= -100) {
 						++threads[i].faultCount;
 						// MASTER FAULT
@@ -265,13 +279,15 @@ int main(void) {
 						//masterFault(i);
 					}
 					else {
-						threads[i].delay = tmpMaxTime - osKernelSysTick();
+						threads[i].delay = tmpMaxTime - currentTick;
 					}
 				}
 				
-				tmpLaxity = (double)((tmpMaxTime - osKernelSysTick())/threads[i].maxTicks)*200 + threads[i].staticPrio; // Somara ate +200 a prioridade de acordo com tempo restante
-				sprintf(toDisplay, "%c %d", 'A' + i, tmpLaxity);
-				GrStringDraw(&sContext, toDisplay, -1, 5,  5 + 10*i, 1);
+				tmpLaxity = ((float)(tmpMaxTime - currentTick)/threads[i].maxTicks);//*200 + threads[i].staticPrio; // Soma ateh +200 a priodade
+				
+				sprintf(toDisplay, "%u", tmpLaxity);
+				GrStringDraw(&sContext, toDisplay, -1, 5, 5, 1);
+				
 				if(tmpLaxity < lowestLaxityFactor) {
 					lowestLaxityFactor = tmpLaxity;
 					lowestLaxityThread = i;
@@ -279,7 +295,6 @@ int main(void) {
 				osThreadSetPriority(threads[i].id, osPriorityLow);
 				previousStates[i] = threads[i].state;
 				threads[i].state = ready;
-				
 			}
 			else if (previousStates[i] != waiting) {
 				if(threads[i].endTime > tmpMaxTime) {
@@ -292,12 +307,12 @@ int main(void) {
 						//masterFault(i);
 					}
 					else {
-						threads[i].staticPrio -= 2;
+						threads[i].staticPrio -= 5;
 					}
 				}
 				else if((threads[i].endTime - threads[i].startTime)/2 < threads[i].maxTicks) {
 					++threads[i].faultCount;
-					threads[i].staticPrio += 2;
+					threads[i].staticPrio += 5;
 				}
 				previousStates[i] = waiting;
 			}
@@ -308,11 +323,14 @@ int main(void) {
 			// Printa umas coisas
 		}
 		
-		osThreadSetPriority(threads[lowestLaxityThread].id, osPriorityBelowNormal);
-		threads[lowestLaxityThread].state = running;
+		if(lowestLaxityThread >= 0) {
+			osThreadSetPriority(threads[lowestLaxityThread].id, osPriorityBelowNormal);
+			threads[lowestLaxityThread].state = running;
+		}
 		
-		osTimerStart(idMainTimer, 20);
+		osTimerStart(idMainTimer, 25);
 
 		osSignalWait(1, osWaitForever);
 	} 
+	
 }
