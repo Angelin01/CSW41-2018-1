@@ -1,19 +1,14 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #include "cmsis_os.h"
 #include "TM4C129.h"
-#include "grlib/grlib.h"
 
-#include "rgb.h"
 #include "cfaf128x128x16.h"
 #include "uart_lab4.h"
 #include "threads_lab5.h"
-
-#include "inc/hw_ints.h"
-#include "driverlib/interrupt.h"
-
 
 // Suprimir erros de funcoes declaradas mas nao referenciadas das libs
 #pragma diag_suppress 177
@@ -21,175 +16,203 @@
 // Desabilita round robin de threads
 #define OS_ROBIN 0
 
-#define currentTick osKernelSysTick()
+#define SEC_TIMER_A 125
+#define SEC_TIMER_B 500
+#define SEC_TIMER_C 200
+#define SEC_TIMER_D 1000
+#define SEC_TIMER_E 167
+#define SEC_TIMER_F 100
+
+#define SEC_TIMER_MAIN 1
+
+/*===========================================================================*/
+
+/* Variáveis globais */
 
 // Contexto da tela
 tContext sContext;
 
-// ID da thread main
+// IDs das threads do sistema
 osThreadId mainId;
-// ===================
-// ===== Threads =====
-// ===================
+osThreadId idleId;
 
-void threadA() {
+// IDs dos timers
+osTimerId threadTimerId[6];
+osTimerId mainTimerId;
+
+// Número da thread que obteve o processador na última execução do escalonador
+ThreadNumber execThread = THR_IDLE;
+
+// Metadados iniciais de cada thread
+ThreadMetadata threadMeta[6] = {
+	{MAX_TICKS_A,   10, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_B,    0, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_C,  -30, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_D,    0, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_E,  -30, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_F, -100, 0, 0, 0, 0, 0.0f, 0, WAITING}
+};
+
+/*===========================================================================*/
+
+/* Funções */
+
+// Função que faz a thread atual dormir, e força o escalonador a executar antes
+// do seu timer.
+// Deve ser chamada em cada thread após esta fazer o devido cálculo.
+void lab5Yield() {
+	threadMeta[execThread].state = WAITING;
+	threadMeta[execThread].endTime = osKernelSysTick();
+	osSignalSet(mainId, 0x1);
+}
+
+/*===========================================================================*/
+
+/* Threads */
+
+void threadA(void const* args) {
 	volatile double total;
 	int i;
 	
-	while(1) {
-		osSignalWait(1, osWaitForever);
+	while (true) {
 		total = 0;
+		threadMeta[THR_A].progress = 0.0f;
 		
-		for(i = 0; i < 256; ++i) {
+		for (i = 0; i < 256; ++i) {
 			total += i + (i + 2);
-			threads[A].progress = (float) (i+1)/256;
+			threadMeta[THR_A].progress = (float) (i+1)/256;
 		}
 		
-		osSignalSet(mainId, 1);
-		threads[A].state = waiting;
-		threads[A].endTime = currentTick;
+		lab5Yield();
 	}
 }
 
-void threadB() {
+void threadB(void const* args) {
 	volatile double total;
-	double pot, fact;
+	double pot;
+	double fact;
 	int i;
 	
-	while(1) {
-		osSignalWait(1, osWaitForever);
+	while (true) {
 		total = 0;
 		pot = 1;
 		fact = 1;
+		threadMeta[THR_B].progress = 0.0f;
 		
-		for(i = 1; i < 16; ++i) {
+		for (i = 1; i < 16; ++i) {
 			pot *= 2;
 			fact *= i;
-			total += pot/fact;
-			threads[B].progress = (float) (i+1)/16;
+			total += (float) pot/fact;
+			threadMeta[THR_B].progress = (float) (i+1)/16;
 		}
-		osSignalSet(mainId, 1);
-		threads[B].state = waiting;
-		threads[B].endTime = currentTick;
+		
+		lab5Yield();
 	}
 }
 
-void threadC() {
+void threadC(void const* args) {
 	volatile double total;
 	int i;
 	
-	while(1) {
-		osSignalWait(1, osWaitForever);
+	while (true) {
 		total = 0;
+		threadMeta[THR_C].progress = 0.0f;
 		
-		for(i = 1; i < 72; ++i) {
-			total += (i + 1)/i;
-			threads[C].progress = (float) (i+1)/72;
+		for (i = 1; i < 72; ++i) {
+			total += (float) (i + 1)/i;
+			threadMeta[THR_C].progress = (float) (i+1)/72;
 		}
-		osSignalSet(mainId, 1);
-		threads[C].state = waiting;
-		threads[C].endTime = currentTick;
+		
+		lab5Yield();
 	}
 }
 
-void threadD() {
+void threadD(void const* args) {
 	volatile double total;
 	
-	while(1) {
-		osSignalWait(1, osWaitForever);
-		total = 1 + 5/(3*2) + 5/(5*4*3*2) + 5/(7*6*5*4*3*2)	+ 5/(9*8*7*6*5*4*3*2);
-		threads[D].progress = 1.0f;
-		osSignalSet(mainId, 1);
-		threads[D].state = waiting;
-		threads[D].endTime = currentTick;
+	while (true) {
+		total = 0;
+		threadMeta[THR_D].progress = 0.0f;
+		
+		total = 1 + 5/(3*2) + 5/(5*4*3*2) + 5/(7*6*5*4*3*2) + 5/(9*8*7*6*5*4*3*2);
+		threadMeta[THR_D].progress = 1.0f;
+		
+		lab5Yield();
 	}
 }
 
-void threadE() {
+void threadE(void const* args) {
 	volatile double total;
 	int i;
 	
-	while(1) {
-		osSignalWait(1, osWaitForever);
+	while (true) {
 		total = 0;
+		threadMeta[THR_E].progress = 0.0f;
 		
-		for(i = 1; i < 100; ++i) {
-			total += i*PI*PI;
-			threads[E].progress = (float) (i+1)/100;
+		for (i = 1; i < 100; ++i) {
+			total += (float) i * M_PI * M_PI;
+			threadMeta[THR_E].progress = (i+1)/100;
 		}
-		osSignalSet(mainId, 1);
-		threads[E].state = waiting;
-		threads[E].endTime = currentTick;
+		
+		lab5Yield();
 	}
 }
 
-void threadF() {
+void threadF(void const* args) {
 	volatile double total;
 	double pot;
 	int i;
 	
-	while(1) {
-		osSignalWait(1, osWaitForever);
+	while (true) {
 		total = 0;
 		pot = 1;
+		threadMeta[THR_F].progress = 0.0f;
 		
-		for(i = 1; i < 128; ++i) {
+		for (i = 1; i < 128; ++i) {
 			pot *= 2;
-			total += (i*i*i)/pot;
-			threads[F].progress = (float) (i+1)/128;
+			total += (float) i*i*i/pot;
+			threadMeta[THR_F].progress = (i+1)/128;
 		}
-		osSignalSet(mainId, 1);
-		threads[F].state = waiting;
-		threads[F].endTime = currentTick;
+		
+		lab5Yield();
 	}
 }
 
-osThreadDef(threadA, osPriorityLow, 1, 0);
-osThreadDef(threadB, osPriorityLow, 1, 0);
-osThreadDef(threadC, osPriorityLow, 1, 0);
-osThreadDef(threadD, osPriorityLow, 1, 0);
-osThreadDef(threadE, osPriorityLow, 1, 0);
-osThreadDef(threadF, osPriorityLow, 1, 0);
-
-
-// =================
-// ===== Inits =====
-// =================
-
-void init_tela() {
-	GrContextInit(&sContext, &g_sCfaf128x128x16);
-	GrFlush(&sContext);
-	GrContextFontSet(&sContext, g_psFontFixed6x8);
-	
-	GrContextForegroundSet(&sContext, ClrWhite);
-	GrContextBackgroundSet(&sContext, ClrBlack);
+void threadIdle(void const* args) {
+	while (true) {
+		// Talvez colocar display aqui
+	}
 }
 
-void init_all() {
-	cfaf128x128x16Init();
-	rgb_init();
-	uart_init(BAUD_115200, DATA_8 | STOP_ONE | PARITY_NONE);
-	init_tela();
-}
+osThreadDef(threadA, osPriorityIdle, 1, 0);
+osThreadDef(threadB, osPriorityIdle, 1, 0);
+osThreadDef(threadC, osPriorityIdle, 1, 0);
+osThreadDef(threadD, osPriorityIdle, 1, 0);
+osThreadDef(threadE, osPriorityIdle, 1, 0);
+osThreadDef(threadF, osPriorityIdle, 1, 0);
+osThreadDef(threadIdle, osPriorityBelowNormal, 1, 0);
 
-// =============================
-// ===== Timers e handler ======
-// =============================
+/*===========================================================================*/
+
+/* Timers */
 
 void threadTimerHandler(void const* t) {
-	threads[(threadNumber) t].state = ready;
-	//threads[(threadNumber) t].progress = 0.0f;
-	threads[(threadNumber) t].startTime = currentTick;
-	threads[(threadNumber) t].delay = 0;
-	osSignalSet(threads[(threadNumber) t].id, 1);
+	if (threadMeta[(ThreadNumber)t].state == WAITING) {
+		threadMeta[(ThreadNumber)t].state = READY;
+		threadMeta[(ThreadNumber)t].startTime = osKernelSysTick();
+	}
+	
+	// Caso a thread em execução atual seja THR_IDLE, seta o signal do main
+	if (execThread == THR_IDLE) {
+		osSignalSet(mainId, 0x1);
+	}
 }
 
-void mainTimerHandler() {
-	osSignalSet(mainId, 1);
-	osThreadYield();
+void mainTimerHandler(void const* args) {
+	// Ativa o signal do main.
+	osSignalSet(mainId, 0x1);
 }
 
-// Passa como argumento a thread no osTimerCreate
 osTimerDef(timerA, threadTimerHandler);
 osTimerDef(timerB, threadTimerHandler);
 osTimerDef(timerC, threadTimerHandler);
@@ -198,72 +221,95 @@ osTimerDef(timerE, threadTimerHandler);
 osTimerDef(timerF, threadTimerHandler);
 osTimerDef(timerMain, mainTimerHandler);
 
+/*===========================================================================*/
+
+/* Main */
 
 int main(void) {
-	char toDisplay[10];
-	int i;
-	uint32_t tmpMaxTime;
-	int32_t tmpLaxity;
-	int32_t lowestLaxityFactor;
-	uint32_t schedulerRuns;
-	int lowestLaxityThread;
-	State previousStates[6] = {waiting, waiting, waiting, waiting, waiting, waiting};
+	uint8_t i;
+	int16_t lowestPrioValueFound;
 	
-	osTimerId idMainTimer;
-	osTimerId idTimerA;
-	osTimerId idTimerB;
-	osTimerId idTimerC;
-	osTimerId idTimerD;
-	osTimerId idTimerE;
-	osTimerId idTimerF;
+	ThreadNumber nextThread;
 	
-	init_all();
+	// Inicializações
 	osKernelInitialize();
 	
+	threadMeta[THR_A].id = osThreadCreate(osThread(threadA), NULL);
+	threadMeta[THR_B].id = osThreadCreate(osThread(threadB), NULL);
+	threadMeta[THR_C].id = osThreadCreate(osThread(threadC), NULL);
+	threadMeta[THR_D].id = osThreadCreate(osThread(threadD), NULL);
+	threadMeta[THR_E].id = osThreadCreate(osThread(threadE), NULL);
+	threadMeta[THR_F].id = osThreadCreate(osThread(threadF), NULL);
 	mainId = osThreadGetId();
+	idleId = osThreadCreate(osThread(threadIdle), NULL);
 	
-	// Criando threads
-	threads[A].id = osThreadCreate(osThread(threadA), NULL);
-	threads[B].id = osThreadCreate(osThread(threadB), NULL);
-	threads[C].id = osThreadCreate(osThread(threadC), NULL);
-	threads[D].id = osThreadCreate(osThread(threadD), NULL);
-	threads[E].id = osThreadCreate(osThread(threadE), NULL);
-	threads[F].id = osThreadCreate(osThread(threadF), NULL);
+	threadTimerId[THR_A] = osTimerCreate(osTimer(timerA), osTimerPeriodic, (void*) THR_A);
+	threadTimerId[THR_B] = osTimerCreate(osTimer(timerB), osTimerPeriodic, (void*) THR_B);
+	threadTimerId[THR_C] = osTimerCreate(osTimer(timerC), osTimerPeriodic, (void*) THR_C);
+	threadTimerId[THR_D] = osTimerCreate(osTimer(timerD), osTimerPeriodic, (void*) THR_D);
+	threadTimerId[THR_E] = osTimerCreate(osTimer(timerE), osTimerPeriodic, (void*) THR_E);
+	threadTimerId[THR_F] = osTimerCreate(osTimer(timerF), osTimerPeriodic, (void*) THR_F);
+	mainTimerId = osTimerCreate(osTimer(timerMain), osTimerPeriodic, NULL);
 	
-	// Criando timers
-	idTimerA = osTimerCreate(osTimer(timerA), osTimerPeriodic, (void *)A);
-	idTimerB = osTimerCreate(osTimer(timerB), osTimerPeriodic, (void *)B);
-	idTimerC = osTimerCreate(osTimer(timerC), osTimerPeriodic, (void *)C);
-	idTimerD = osTimerCreate(osTimer(timerD), osTimerPeriodic, (void *)D);
-	idTimerE = osTimerCreate(osTimer(timerE), osTimerPeriodic, (void *)E);
-	idTimerF = osTimerCreate(osTimer(timerF), osTimerPeriodic, (void *)F);
-	idMainTimer = osTimerCreate(osTimer(timerMain), osTimerPeriodic, NULL);
-	
-	osKernelStart();
-	
-	// Iniciando timers
-	/*osTimerStart(idTimerA, 125);
-	osTimerStart(idTimerB, 500);
-	osTimerStart(idTimerC, 200);
-	osTimerStart(idTimerD, 1000);
-	osTimerStart(idTimerE, 167);
-	osTimerStart(idTimerF, 100);*/
-	
-	// =====================
-	// ===== SCHEDULER =====
-	// =====================
+	osTimerStart(threadTimerId[THR_A], SEC_TIMER_A);
+	osTimerStart(threadTimerId[THR_B], SEC_TIMER_B);
+	osTimerStart(threadTimerId[THR_C], SEC_TIMER_C);
+	osTimerStart(threadTimerId[THR_D], SEC_TIMER_D);
+	osTimerStart(threadTimerId[THR_E], SEC_TIMER_E);
+	osTimerStart(threadTimerId[THR_F], SEC_TIMER_F);
 	
 	osThreadSetPriority(mainId, osPriorityAboveNormal);
 	
-	for(schedulerRuns = 0; true; ++schedulerRuns) {
-		osTimerStop(idMainTimer);
-		for(i = 0; i < 6; ++i) {
-			osThreadSetPriority(threads[i].id, osPriorityLow);
-		}
-		osThreadSetPriority(threads[schedulerRuns%6].id, osPriorityBelowNormal);
-		osSignalSet(threads[schedulerRuns%6].id, 1);
-		osTimerStart(idMainTimer, 1);
-		osSignalWait(1, osWaitForever);
-	} 
+	osKernelStart();
 	
+	/* Corpo do scheduler */
+	
+	while (true) {
+		// Desliga o relógio
+		osTimerStop(mainTimerId);
+		
+		// Procura a thread de maior prioridade
+		// TODO: Fazer um escalonamento mais inteligente.
+		lowestPrioValueFound = 0x7FFF;
+		nextThread = THR_IDLE;
+		for (i = 0; i < THR_IDLE; ++i) {
+			if (threadMeta[i].state != WAITING) {
+				if (threadMeta[i].staticPrio < lowestPrioValueFound) {
+					lowestPrioValueFound = threadMeta[i].staticPrio;
+					nextThread = i;
+				}
+			}
+		}
+		
+		// A thread idle tem prioridade osPriorityBelowNormal.
+		// O escalonador tem prioridade osPriorityAboveNormal.
+		// A thread de timers do RTOS tem prioridade osPriorityHigh.
+		// Ou seja, a thread que estava sendo executada deve ter sua
+		// prioridade alterada para osPriorityIdle,
+		// e a próxima thread a executar deve ter sua prioridade
+		// alterada para osPriorityNormal.
+		
+		// Altera as prioridades da última thread a executar e da próxima,
+		// EXCETO se for a thread idle (cuja prioridade não deve ser alterada).
+		if (execThread != THR_IDLE) {
+			osThreadSetPriority(threadMeta[execThread].id, osPriorityIdle);
+			// Se a tarefa sofreu preempção, deixa ela READY, para ela poder
+			// ser escolhida em alguma próxima execução do escalonador.
+			if (threadMeta[execThread].state == RUNNING) {
+				threadMeta[execThread].state = READY;
+			}
+		}
+		if (nextThread != THR_IDLE) {
+			osThreadSetPriority(threadMeta[nextThread].id, osPriorityNormal);
+			threadMeta[nextThread].state = RUNNING;
+		}
+		
+		// Prepara as variáveis e timer para a próxima execução do escalonador
+		execThread = nextThread;
+		osTimerStart(mainTimerId, SEC_TIMER_MAIN);
+		osSignalClear(mainId, 0x1);
+		osSignalWait(0x1, osWaitForever);
+	}
+	
+	return 0;
 }
