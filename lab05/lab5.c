@@ -26,6 +26,9 @@
 
 #define SEC_TIMER_MAIN 1
 
+#define dynamicPrio(x) \
+        ((float)(threadMeta[x].startTime + threadMeta[x].maxTicks - osKernelSysTick())/threadMeta[x].maxTicks) * 200 + threadMeta[x].staticPrio
+
 /*===========================================================================*/
 
 /* Variáveis globais */
@@ -46,12 +49,12 @@ ThreadNumber execThread = THR_IDLE;
 
 // Metadados iniciais de cada thread
 ThreadMetadata threadMeta[6] = {
-	{MAX_TICKS_A,   10, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_B,    0, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_C,  -30, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_D,    0, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_E,  -30, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_F, -100, 0, 0, 0, 0, 0.0f, 0, WAITING}
+	{MAX_TICKS_A,   10,   10, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_B,    0,    0, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_C,  -30,  -30, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_D,    0,    0, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_E,  -30,  -30, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_F, -100, -100, 0, 0, 0, 0, 0.0f, 0, WAITING}
 };
 
 /*===========================================================================*/
@@ -103,7 +106,7 @@ void threadB(void const* args) {
 		for (i = 1; i < 16; ++i) {
 			pot *= 2;
 			fact *= i;
-			total += (float) pot/fact;
+			total += (double) pot/fact;
 			threadMeta[THR_B].progress = (float) (i+1)/16;
 		}
 		
@@ -120,7 +123,7 @@ void threadC(void const* args) {
 		threadMeta[THR_C].progress = 0.0f;
 		
 		for (i = 1; i < 72; ++i) {
-			total += (float) (i + 1)/i;
+			total += (double) (i + 1)/i;
 			threadMeta[THR_C].progress = (float) (i+1)/72;
 		}
 		
@@ -151,8 +154,8 @@ void threadE(void const* args) {
 		threadMeta[THR_E].progress = 0.0f;
 		
 		for (i = 1; i < 100; ++i) {
-			total += (float) i * M_PI * M_PI;
-			threadMeta[THR_E].progress = (i+1)/100;
+			total += (double) i * M_PI * M_PI;
+			threadMeta[THR_E].progress =  (float) (i+1)/100;
 		}
 		
 		lab5Yield();
@@ -171,8 +174,8 @@ void threadF(void const* args) {
 		
 		for (i = 1; i < 128; ++i) {
 			pot *= 2;
-			total += (float) i*i*i/pot;
-			threadMeta[THR_F].progress = (i+1)/128;
+			total += (double) i*i*i/pot;
+			threadMeta[THR_F].progress = (float) (i+1)/128;
 		}
 		
 		lab5Yield();
@@ -275,8 +278,9 @@ int main(void) {
 		nextThread = THR_IDLE;
 		for (i = 0; i < THR_IDLE; ++i) {
 			if (threadMeta[i].state != WAITING) {
-				if (threadMeta[i].staticPrio < lowestPrioValueFound) {
-					lowestPrioValueFound = threadMeta[i].staticPrio;
+				threadMeta[i].dynamPrio = dynamicPrio(i);
+				if (threadMeta[i].dynamPrio < lowestPrioValueFound) {
+					lowestPrioValueFound = threadMeta[i].dynamPrio;
 					nextThread = i;
 				}
 			}

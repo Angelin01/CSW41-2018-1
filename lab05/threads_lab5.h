@@ -53,8 +53,9 @@ typedef enum ThreadNumber {
 // Metadados das threads
 typedef struct ThreadMetadata {
 	const uint32_t maxTicks;
-	const int16_t staticPrio;
 	
+	int16_t staticPrio;
+	int16_t dynamPrio;
 	uint32_t startTime;
 	uint32_t endTime;
 	uint32_t delay;
