@@ -6,6 +6,7 @@
 #include "cmsis_os.h"
 #include "TM4C129.h"
 
+#include "grlib/grlib.h"
 #include "cfaf128x128x16.h"
 #include "uart_lab4.h"
 #include "threads_lab5.h"
