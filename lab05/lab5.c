@@ -42,7 +42,7 @@ void threadA() {
 		
 		for(i = 0; i < 256; ++i) {
 			total += i + (i + 2);
-			threads[A].progress = (float) i/256;
+			threads[A].progress = (float) (i+1)/256;
 		}
 		
 		osSignalSet(mainId, 1);
@@ -66,7 +66,7 @@ void threadB() {
 			pot *= 2;
 			fact *= i;
 			total += pot/fact;
-			threads[B].progress = (float) i/16;
+			threads[B].progress = (float) (i+1)/16;
 		}
 		osSignalSet(mainId, 1);
 		threads[B].state = waiting;
@@ -84,7 +84,7 @@ void threadC() {
 		
 		for(i = 1; i < 72; ++i) {
 			total += (i + 1)/i;
-			threads[C].progress = (float) i/72;
+			threads[C].progress = (float) (i+1)/72;
 		}
 		osSignalSet(mainId, 1);
 		threads[C].state = waiting;
@@ -96,12 +96,12 @@ void threadD() {
 	volatile double total;
 	
 	while(1) {
+		osSignalWait(1, osWaitForever);
 		total = 1 + 5/(3*2) + 5/(5*4*3*2) + 5/(7*6*5*4*3*2)	+ 5/(9*8*7*6*5*4*3*2);
-		threads[D].progress = (float) 1;
+		threads[D].progress = 1.0f;
 		osSignalSet(mainId, 1);
 		threads[D].state = waiting;
 		threads[D].endTime = currentTick;
-		osSignalWait(1, osWaitForever);
 	}
 }
 
@@ -115,7 +115,7 @@ void threadE() {
 		
 		for(i = 1; i < 100; ++i) {
 			total += i*PI*PI;
-			threads[E].progress = (float) i/100;
+			threads[E].progress = (float) (i+1)/100;
 		}
 		osSignalSet(mainId, 1);
 		threads[E].state = waiting;
@@ -136,7 +136,7 @@ void threadF() {
 		for(i = 1; i < 128; ++i) {
 			pot *= 2;
 			total += (i*i*i)/pot;
-			threads[F].progress = (float) i/128;
+			threads[F].progress = (float) (i+1)/128;
 		}
 		osSignalSet(mainId, 1);
 		threads[F].state = waiting;
@@ -196,24 +196,18 @@ osTimerDef(timerC, threadTimerHandler);
 osTimerDef(timerD, threadTimerHandler);
 osTimerDef(timerE, threadTimerHandler);
 osTimerDef(timerF, threadTimerHandler);
-
 osTimerDef(timerMain, mainTimerHandler);
 
-void masterFault(threadNumber i) {
-	GrStringDraw(&sContext, "MASTER FAULT", -1, 5, i*10 + 5, 1);
-	while(1);
-}
-char toDisplay[10];
 
 int main(void) {
-	int32_t lowestLaxityFactor;
-	uint32_t tmpLaxity;
+	char toDisplay[10];
+	int i;
 	uint32_t tmpMaxTime;
+	int32_t tmpLaxity;
+	int32_t lowestLaxityFactor;
 	uint32_t schedulerRuns;
 	int lowestLaxityThread;
 	State previousStates[6] = {waiting, waiting, waiting, waiting, waiting, waiting};
-
-	int i;
 	
 	osTimerId idMainTimer;
 	osTimerId idTimerA;
@@ -248,88 +242,27 @@ int main(void) {
 	osKernelStart();
 	
 	// Iniciando timers
-	osTimerStart(idTimerA, 125);
+	/*osTimerStart(idTimerA, 125);
 	osTimerStart(idTimerB, 500);
 	osTimerStart(idTimerC, 200);
 	osTimerStart(idTimerD, 1000);
 	osTimerStart(idTimerE, 167);
-	osTimerStart(idTimerF, 100);
+	osTimerStart(idTimerF, 100);*/
 	
 	// =====================
 	// ===== SCHEDULER =====
 	// =====================
 	
-	osThreadSetPriority(mainId, osPriorityHigh);
+	osThreadSetPriority(mainId, osPriorityAboveNormal);
 	
 	for(schedulerRuns = 0; true; ++schedulerRuns) {
 		osTimerStop(idMainTimer);
-		
-		lowestLaxityFactor = 1000; // Deve ser maior que 300
-		lowestLaxityThread = -1;
 		for(i = 0; i < 6; ++i) {
-			tmpMaxTime = threads[i].startTime + threads[i].maxTicks;
-			if(threads[i].state != waiting) { // Se a thread nao esta dormindo, fazer coisas de scheduling
-				if(currentTick > tmpMaxTime) {
-					if(threads[i].staticPrio <= -100) {
-						++threads[i].faultCount;
-						// MASTER FAULT
-						// HCF
-						// PICNIC
-						// PRESS THE RED BUTTON
-						//masterFault(i);
-					}
-					else {
-						threads[i].delay = tmpMaxTime - currentTick;
-					}
-				}
-				
-				tmpLaxity = ((float)(tmpMaxTime - currentTick)/threads[i].maxTicks);//*200 + threads[i].staticPrio; // Soma ateh +200 a priodade
-				
-				sprintf(toDisplay, "%u", tmpLaxity);
-				GrStringDraw(&sContext, toDisplay, -1, 5, 5, 1);
-				
-				if(tmpLaxity < lowestLaxityFactor) {
-					lowestLaxityFactor = tmpLaxity;
-					lowestLaxityThread = i;
-				}
-				osThreadSetPriority(threads[i].id, osPriorityLow);
-				previousStates[i] = threads[i].state;
-				threads[i].state = ready;
-			}
-			else if (previousStates[i] != waiting) {
-				if(threads[i].endTime > tmpMaxTime) {
-					++threads[i].faultCount;
-					if(threads[i].staticPrio <= -100) {
-						// MASTER FAULT
-						// HCF
-						// PICNIC
-						// PRESS THE RED BUTTON
-						//masterFault(i);
-					}
-					else {
-						threads[i].staticPrio -= 5;
-					}
-				}
-				else if((threads[i].endTime - threads[i].startTime)/2 < threads[i].maxTicks) {
-					++threads[i].faultCount;
-					threads[i].staticPrio += 5;
-				}
-				previousStates[i] = waiting;
-			}
-			
+			osThreadSetPriority(threads[i].id, osPriorityLow);
 		}
-		
-		if(schedulerRuns % 100 == 0) {
-			// Printa umas coisas
-		}
-		
-		if(lowestLaxityThread >= 0) {
-			osThreadSetPriority(threads[lowestLaxityThread].id, osPriorityBelowNormal);
-			threads[lowestLaxityThread].state = running;
-		}
-		
-		osTimerStart(idMainTimer, 25);
-
+		osThreadSetPriority(threads[schedulerRuns%6].id, osPriorityBelowNormal);
+		osSignalSet(threads[schedulerRuns%6].id, 1);
+		osTimerStart(idMainTimer, 1);
 		osSignalWait(1, osWaitForever);
 	} 
 	
