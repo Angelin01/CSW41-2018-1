@@ -59,6 +59,7 @@ typedef struct ThreadMetadata {
 	int16_t dynamPrio;
 	uint32_t startTime;
 	uint32_t endTime;
+	uint32_t remainingTicks;
 	uint32_t delay;
 	uint32_t faultCount;
 	volatile float progress; // volatile para eu enxergar no debugger (ele só mata a variável pq não usa)

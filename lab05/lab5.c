@@ -26,6 +26,9 @@
 
 #define MSEC_TIMER_MAIN 3
 
+// Comente para que acontecam master faults
+#define DISABLE_MASTER_FAULT
+
 // Formula de prioridade
 // Basicamente: PorcentagemTicksRestantes * 200 + PrioridadeNormal
 #define laxity(x) \
@@ -56,12 +59,12 @@ ThreadNumber execThread = THR_IDLE;
 
 // Metadados iniciais de cada thread
 ThreadMetadata threadMeta[6] = {
-	{MAX_TICKS_A,   10,   10, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_B,    0,    0, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_C,  -30,  -30, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_D,    0,    0, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_E,  -30,  -30, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_F, -100, -100, 0, 0, 0, 0, 0.0f, 0, WAITING}
+	{MAX_TICKS_A,   10,   10, 0, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_B,    0,    0, 0, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_C,  -30,  -30, 0, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_D,    0,    0, 0, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_E,  -30,  -30, 0, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_F, -100, -100, 0, 0, 0, 0, 0, 0.0f, 0, WAITING}
 };
 
 /*===========================================================================*/
@@ -225,6 +228,8 @@ void mainTimerHandler(void const* args) {
 }
 
 void masterFault() {
+	GrContextForegroundSet(&sContext, ClrRed);
+	GrStringDraw(&sContext, "MASTER FAULT", -1, 10, 60, 1);
 	while(1);
 }
 
@@ -237,9 +242,6 @@ osTimerDef(timerF, threadTimerHandler);
 osTimerDef(timerMain, mainTimerHandler);
 
 /*===========================================================================*/
-
-/* DEBUG GLOBAL */
-int32_t remainingTicks[6];
 
 /* Main */
 
@@ -300,18 +302,21 @@ int main(void) {
 				else if(runningTime(i) > threadMeta[i].maxTicks) {
 					++threadMeta[i].faultCount;
 					// Atrasou! Aumentar prioridade
+					
 					if(threadMeta[i].staticPrio > -100) {
 						threadMeta[i].staticPrio -= 5;
 					}
-					//else {
-					//	masterFault();
-					//}
+					#ifndef DISABLE_MASTER_FAULT
+					else {
+						masterFault();
+					}
+					#endif
 				}
 				threadMeta[i].state = WAITING;
 			}
 			
 			if (threadMeta[i].state != WAITING) {
-				remainingTicks[i] = laxity(i);
+				threadMeta[i].remainingTicks = laxity(i);
 				threadMeta[i].dynamPrio = dynamicPrio(i);
 				if (threadMeta[i].dynamPrio < lowestPrioValueFound) {
 					lowestPrioValueFound = threadMeta[i].dynamPrio;
