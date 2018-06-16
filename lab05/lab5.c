@@ -287,17 +287,18 @@ int main(void) {
 		osTimerStop(mainTimerId);
 		
 		// Procura a thread de maior prioridade
-		// TODO: Fazer um escalonamento mais inteligente.
 		lowestPrioValueFound = 0x7FFF;
 		nextThread = THR_IDLE;
 		for (i = 0; i < THR_IDLE; ++i) {
 			// Checa por faults
 			if(threadMeta[i].state == ENDED) {
 				if(runningTime(i) < threadMeta[i].maxTicks/2) {
+					++threadMeta[i].faultCount;
 					// Executou muito rapido! Diminuir prioridade
 					threadMeta[i].staticPrio += 5;
 				}
 				else if(runningTime(i) > threadMeta[i].maxTicks) {
+					++threadMeta[i].faultCount;
 					// Atrasou! Aumentar prioridade
 					if(threadMeta[i].staticPrio > -100) {
 						threadMeta[i].staticPrio -= 5;
