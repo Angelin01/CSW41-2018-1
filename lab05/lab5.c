@@ -24,7 +24,7 @@
 #define SEC_TIMER_E 167
 #define SEC_TIMER_F 100
 
-#define MSEC_TIMER_MAIN 3
+#define MSEC_TIMER_MAIN 4
 
 // Comente para que acontecam master faults
 #define DISABLE_MASTER_FAULT
@@ -231,9 +231,12 @@ void threadIdle(void const* args) {
 		}
 		/* Printar coisas no display */
 		for(i = 0; i < 6; ++i) {
-			sprintf(toPrint, "%d", threadMeta[i].staticPrio);
-			GrStringDraw(&sContext, toPrint, -1, 12, 10*(i+1), 1);
-			GrStringDraw(&sContext, &arr[i]->identifier, 1, 88 + 6*i, 36, 1); // Fila de prioridade
+			/* Print faultCount */
+			sprintf(toPrint, "%.2d", threadMeta[i].faultCount);
+			GrStringDraw(&sContext, toPrint, 2, 72, 10*(i+1), 1);
+			
+			/* Fila de prioridade */
+			GrStringDraw(&sContext, &arr[i]->identifier, 1, 88 + 6*i, 36, 1);
 		}
 	}
 }
@@ -300,8 +303,10 @@ osTimerDef(timerMain, mainTimerHandler);
 /* Main */
 
 int main(void) {
+	char toPrint[5];
 	uint8_t i;
 	int32_t lowestPrioValueFound;
+	uint32_t schedulerRuns;
 	
 	ThreadNumber nextThread;
 	
@@ -357,7 +362,7 @@ int main(void) {
 	
 	/* Corpo do scheduler */
 	
-	while (true) {
+	for(schedulerRuns = 0; true; ++schedulerRuns) {
 		// Desliga o relógio
 		osTimerStop(mainTimerId);
 		
@@ -371,12 +376,22 @@ int main(void) {
 					++threadMeta[i].faultCount;
 					// Executou muito rapido! Diminuir prioridade
 					threadMeta[i].staticPrio += 5;
+					
+					/* Print prioridade */
+					sprintf(toPrint, "%d", threadMeta[i].staticPrio);
+					GrStringDraw(&sContext, toPrint, -1, 12, 10*(i+1), 1);
 				}
 				else if(runningTime(i) > threadMeta[i].maxTicks) {
 					++threadMeta[i].faultCount;
 					// Atrasou! Aumentar prioridade
+					
+					/* Print prioridade */
+					sprintf(toPrint, "%d", threadMeta[i].staticPrio);
+					
+					GrStringDraw(&sContext, toPrint, -1, 12, 10*(i+1), 1);
 					if(threadMeta[i].staticPrio > -100) {
 						threadMeta[i].staticPrio -= 5;
+						
 					}
 					#ifndef DISABLE_MASTER_FAULT
 					else {
@@ -394,6 +409,14 @@ int main(void) {
 					lowestPrioValueFound = threadMeta[i].dynamPrio;
 					nextThread = i;
 				}
+			}
+			
+			/* Printa estado */
+			if(schedulerRuns%20 == 0) {
+				GrStringDraw(&sContext, threadMeta[i].state == RUNNING ? "X" : threadMeta[i].state == READY ? "R" : "W", -1, 42, 10*(i+1), 1);
+							/* Print porcent */
+				sprintf(toPrint, "%3f", threadMeta[i].progress * 100);
+				GrStringDraw(&sContext, toPrint, 3, 50, 10*(i+1), 1);
 			}
 		}
 		
