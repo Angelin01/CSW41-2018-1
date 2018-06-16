@@ -9,30 +9,31 @@
 #endif
 
 /**
-* Tempos tabelados de execucao, em ticks, com -O2:
-* A: 39637
-* B: 8210
-* C: 11370
-* D: 226
-* E: 38413
-* F: 56390
+* Tempos tabelados de execucao, em ticks:
+* A: 51528
+* B: 10673
+* C: 14781
+* D: 293
+* E: 49936
+* F: 68307
 *
 * Tempo maximo de execucao sera o tempo tabelado acima vezes (1 + deadline)
 * Os tempos, arrendodados para baixo, foram colocados nos defines abaixo:
 **/
 
-#define MAX_TICKS_A 67382
-#define MAX_TICKS_B 12315
-#define MAX_TICKS_C 14781
-#define MAX_TICKS_D 293
-#define MAX_TICKS_E 49936
-#define MAX_TICKS_F 62029
+#define MAX_TICKS_A 87597
+#define MAX_TICKS_B 16009
+#define MAX_TICKS_C 19215
+#define MAX_TICKS_D 439
+#define MAX_TICKS_E 64916
+#define MAX_TICKS_F 75137
 
 // Estado da thread para o escalonador
 typedef enum ThreadState {
 	READY,
 	RUNNING,
-	WAITING
+	WAITING,
+	ENDED
 } ThreadState;
 
 // Número da thread (índice do vetor)

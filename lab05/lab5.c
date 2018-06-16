@@ -24,10 +24,17 @@
 #define SEC_TIMER_E 167
 #define SEC_TIMER_F 100
 
-#define SEC_TIMER_MAIN 1
+#define MSEC_TIMER_MAIN 3
 
+// Formula de prioridade
+// Basicamente: PorcentagemTicksRestantes * 200 + PrioridadeNormal
+#define laxity(x) \
+        ((double)threadMeta[x].startTime + (double)threadMeta[x].maxTicks - (double)osKernelSysTick())
 #define dynamicPrio(x) \
-        ((float)(threadMeta[x].startTime + threadMeta[x].maxTicks - osKernelSysTick())/threadMeta[x].maxTicks) * 200 + threadMeta[x].staticPrio
+        ((laxity(x)/threadMeta[x].maxTicks) * 200 + threadMeta[x].staticPrio)
+		
+#define runningTime(x) \
+		(threadMeta[x].endTime - threadMeta[x].startTime)
 
 /*===========================================================================*/
 
@@ -65,7 +72,7 @@ ThreadMetadata threadMeta[6] = {
 // do seu timer.
 // Deve ser chamada em cada thread após esta fazer o devido cálculo.
 void lab5Yield() {
-	threadMeta[execThread].state = WAITING;
+	threadMeta[execThread].state = ENDED;
 	threadMeta[execThread].endTime = osKernelSysTick();
 	osSignalSet(mainId, 0x1);
 }
@@ -217,6 +224,10 @@ void mainTimerHandler(void const* args) {
 	osSignalSet(mainId, 0x1);
 }
 
+void masterFault() {
+	while(1);
+}
+
 osTimerDef(timerA, threadTimerHandler);
 osTimerDef(timerB, threadTimerHandler);
 osTimerDef(timerC, threadTimerHandler);
@@ -227,11 +238,14 @@ osTimerDef(timerMain, mainTimerHandler);
 
 /*===========================================================================*/
 
+/* DEBUG GLOBAL */
+int32_t remainingTicks[6];
+
 /* Main */
 
 int main(void) {
 	uint8_t i;
-	int16_t lowestPrioValueFound;
+	int32_t lowestPrioValueFound;
 	
 	ThreadNumber nextThread;
 	
@@ -277,7 +291,26 @@ int main(void) {
 		lowestPrioValueFound = 0x7FFF;
 		nextThread = THR_IDLE;
 		for (i = 0; i < THR_IDLE; ++i) {
+			// Checa por faults
+			if(threadMeta[i].state == ENDED) {
+				if(runningTime(i) < threadMeta[i].maxTicks/2) {
+					// Executou muito rapido! Diminuir prioridade
+					threadMeta[i].staticPrio += 5;
+				}
+				else if(runningTime(i) > threadMeta[i].maxTicks) {
+					// Atrasou! Aumentar prioridade
+					if(threadMeta[i].staticPrio > -100) {
+						threadMeta[i].staticPrio -= 5;
+					}
+					//else {
+					//	masterFault();
+					//}
+				}
+				threadMeta[i].state = WAITING;
+			}
+			
 			if (threadMeta[i].state != WAITING) {
+				remainingTicks[i] = laxity(i);
 				threadMeta[i].dynamPrio = dynamicPrio(i);
 				if (threadMeta[i].dynamPrio < lowestPrioValueFound) {
 					lowestPrioValueFound = threadMeta[i].dynamPrio;
@@ -311,7 +344,7 @@ int main(void) {
 		
 		// Prepara as variáveis e timer para a próxima execução do escalonador
 		execThread = nextThread;
-		osTimerStart(mainTimerId, SEC_TIMER_MAIN);
+		osTimerStart(mainTimerId, MSEC_TIMER_MAIN);
 		osSignalClear(mainId, 0x1);
 		osSignalWait(0x1, osWaitForever);
 	}
