@@ -59,12 +59,12 @@ ThreadNumber execThread = THR_IDLE;
 
 // Metadados iniciais de cada thread
 ThreadMetadata threadMeta[6] = {
-	{MAX_TICKS_A,   10,   10, 0, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_B,    0,    0, 0, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_C,  -30,  -30, 0, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_D,    0,    0, 0, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_E,  -30,  -30, 0, 0, 0, 0, 0, 0.0f, 0, WAITING},
-	{MAX_TICKS_F, -100, -100, 0, 0, 0, 0, 0, 0.0f, 0, WAITING}
+	{MAX_TICKS_A, 'A',   10,   10, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_B, 'B',    0,    0, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_C, 'C',  -30,  -30, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_D, 'D',    0,    0, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_E, 'E',  -30,  -30, 0, 0, 0, 0, 0.0f, 0, WAITING},
+	{MAX_TICKS_F, 'F', -100, -100, 0, 0, 0, 0, 0.0f, 0, WAITING}
 };
 
 /*===========================================================================*/
@@ -192,9 +192,49 @@ void threadF(void const* args) {
 	}
 }
 
+void insertionSort(ThreadMetadata* arr[]) {
+	int i, key, j;
+    ThreadMetadata* elem;
+    for (i = 1; i < 6; i++) {
+        elem = arr[i];
+        key = elem->staticPrio;
+        j = i-1;
+        
+        while (j >= 0 && arr[j]->staticPrio > key) {
+            arr[j+1] = arr[j];
+            j = j-1;
+        }
+        
+        arr[j+1] = elem;
+    }
+}
+
 void threadIdle(void const* args) {
+	int i, key, j;
+	char toPrint[5];
+    ThreadMetadata* elem;
+	ThreadMetadata* arr[6] = {&threadMeta[THR_A], &threadMeta[THR_B], &threadMeta[THR_C], &threadMeta[THR_D], &threadMeta[THR_E], &threadMeta[THR_F]};
+	
 	while (true) {
-		// Talvez colocar display aqui
+		/* Organiza a fila de prioridade para print */
+		for (i = 1; i < 6; ++i) {
+			elem = arr[i];
+			key = elem->staticPrio;
+			j = i-1;
+			
+			while (j >= 0 && arr[j]->staticPrio > key) {
+				arr[j+1] = arr[j];
+				j = j-1;
+			}
+			
+			arr[j+1] = elem;
+		}
+		/* Printar coisas no display */
+		for(i = 0; i < 6; ++i) {
+			sprintf(toPrint, "%d", threadMeta[i].staticPrio);
+			GrStringDraw(&sContext, toPrint, -1, 12, 10*(i+1), 1);
+			GrStringDraw(&sContext, &arr[i]->identifier, 1, 88 + 6*i, 36, 1); // Fila de prioridade
+		}
 	}
 }
 
@@ -207,6 +247,20 @@ osThreadDef(threadF, osPriorityIdle, 1, 0);
 osThreadDef(threadIdle, osPriorityBelowNormal, 1, 0);
 
 /*===========================================================================*/
+
+void init_tela() {
+	GrContextInit(&sContext, &g_sCfaf128x128x16);
+	GrFlush(&sContext);
+	GrContextFontSet(&sContext, g_psFontFixed6x8);
+	
+	GrContextForegroundSet(&sContext, ClrWhite);
+	GrContextBackgroundSet(&sContext, ClrBlack);
+}
+
+void init_all() {
+	cfaf128x128x16Init();
+	init_tela();
+}
 
 /* Timers */
 
@@ -253,6 +307,7 @@ int main(void) {
 	
 	// Inicializações
 	osKernelInitialize();
+	init_all();
 	
 	threadMeta[THR_A].id = osThreadCreate(osThread(threadA), NULL);
 	threadMeta[THR_B].id = osThreadCreate(osThread(threadB), NULL);
@@ -270,6 +325,24 @@ int main(void) {
 	threadTimerId[THR_E] = osTimerCreate(osTimer(timerE), osTimerPeriodic, (void*) THR_E);
 	threadTimerId[THR_F] = osTimerCreate(osTimer(timerF), osTimerPeriodic, (void*) THR_F);
 	mainTimerId = osTimerCreate(osTimer(timerMain), osTimerPeriodic, NULL);
+	
+	/* Print inicial no display */
+	GrStringDraw(&sContext, "T|PRIO|E| %|FC|ORDEM", -1, 0, 0, 1);
+	GrLineDraw(&sContext, 0, 8, 128, 8);
+	GrStringDraw(&sContext, "A", -1, 0, 10, 1);
+	GrStringDraw(&sContext, "B", -1, 0, 20, 1);
+	GrStringDraw(&sContext, "C", -1, 0, 30, 1);
+	GrStringDraw(&sContext, "D", -1, 0, 40, 1);
+	GrStringDraw(&sContext, "E", -1, 0, 50, 1);
+	GrStringDraw(&sContext, "F", -1, 0, 60, 1);
+	GrLineDraw(&sContext, 0, 68, 128, 68);
+	GrStringDraw(&sContext, "A", -1, 0, 70, 1);
+	GrStringDraw(&sContext, "B", -1, 0, 80, 1);
+	GrStringDraw(&sContext, "C", -1, 0, 90, 1);
+	GrStringDraw(&sContext, "D", -1, 0, 100, 1);
+	GrStringDraw(&sContext, "E", -1, 0, 110, 1);
+	GrStringDraw(&sContext, "F", -1, 0, 120, 1);
+	GrLineDraw(&sContext, 86, 8, 86, 68);
 	
 	osTimerStart(threadTimerId[THR_A], SEC_TIMER_A);
 	osTimerStart(threadTimerId[THR_B], SEC_TIMER_B);
@@ -294,7 +367,7 @@ int main(void) {
 		for (i = 0; i < THR_IDLE; ++i) {
 			// Checa por faults
 			if(threadMeta[i].state == ENDED) {
-				if(runningTime(i) < threadMeta[i].maxTicks/2) {
+				if(runningTime(i) < threadMeta[i].maxTicks/2) { // Nunca acontece por coisa de deadline muito baixa
 					++threadMeta[i].faultCount;
 					// Executou muito rapido! Diminuir prioridade
 					threadMeta[i].staticPrio += 5;
@@ -302,7 +375,6 @@ int main(void) {
 				else if(runningTime(i) > threadMeta[i].maxTicks) {
 					++threadMeta[i].faultCount;
 					// Atrasou! Aumentar prioridade
-					
 					if(threadMeta[i].staticPrio > -100) {
 						threadMeta[i].staticPrio -= 5;
 					}
