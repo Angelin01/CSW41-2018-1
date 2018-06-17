@@ -26,6 +26,8 @@
 
 #define MSEC_TIMER_MAIN 4
 
+#define GANTT
+
 // Comente para que acontecam master faults
 #define DISABLE_MASTER_FAULT
 
@@ -53,6 +55,17 @@ osThreadId idleId;
 // IDs dos timers
 osTimerId threadTimerId[6];
 osTimerId mainTimerId;
+		
+// Coisas Gantt
+#ifdef GANTT
+#define NUM_GANTT_TIMES 20
+
+uint32_t threadStarts[THR_IDLE][NUM_GANTT_TIMES];
+uint32_t threadEnds[THR_IDLE][NUM_GANTT_TIMES];
+
+uint32_t threadMainStarts[NUM_GANTT_TIMES*THR_IDLE];
+uint32_t threadMainEnds[NUM_GANTT_TIMES*THR_IDLE];
+#endif
 
 // Número da thread que obteve o processador na última execução do escalonador
 ThreadNumber execThread = THR_IDLE;
@@ -85,10 +98,19 @@ void lab5Yield() {
 /* Threads */
 
 void threadA(void const* args) {
+	#ifdef GANTT
+	int executions = 0;
+	#endif
 	volatile double total;
 	int i;
 	
 	while (true) {
+		#ifdef GANTT
+		if(executions < NUM_GANTT_TIMES) {
+			threadStarts[execThread][executions] = osKernelSysTick();
+		}
+		#endif
+		
 		total = 0;
 		threadMeta[THR_A].progress = 0.0f;
 		
@@ -97,17 +119,33 @@ void threadA(void const* args) {
 			threadMeta[THR_A].progress = (float) (i+1)/256;
 		}
 		
+		#ifdef GANTT
+		if(executions < NUM_GANTT_TIMES) {
+			threadEnds[execThread][executions] = osKernelSysTick();
+		}
+		++executions;
+		#endif
+		
 		lab5Yield();
 	}
 }
 
 void threadB(void const* args) {
+	#ifdef GANTT
+	int executions = 0;
+	#endif
 	volatile double total;
 	double pot;
 	double fact;
 	int i;
 	
 	while (true) {
+		#ifdef GANTT
+		if(executions < NUM_GANTT_TIMES) {
+			threadStarts[execThread][executions] = osKernelSysTick();
+		}
+		#endif
+		
 		total = 0;
 		pot = 1;
 		fact = 1;
@@ -120,15 +158,32 @@ void threadB(void const* args) {
 			threadMeta[THR_B].progress = (float) (i+1)/16;
 		}
 		
+		#ifdef GANTT
+		if(executions < NUM_GANTT_TIMES) {
+			threadEnds[execThread][executions] = osKernelSysTick();
+		}
+		++executions;
+		#endif
+		
 		lab5Yield();
 	}
 }
 
 void threadC(void const* args) {
+	#ifdef GANTT
+	int executions = 0;
+	#endif
 	volatile double total;
 	int i;
 	
 	while (true) {
+		
+		#ifdef GANTT
+		if(executions < NUM_GANTT_TIMES) {
+			threadStarts[execThread][executions] = osKernelSysTick();
+		}
+		#endif
+		
 		total = 0;
 		threadMeta[THR_C].progress = 0.0f;
 		
@@ -137,29 +192,63 @@ void threadC(void const* args) {
 			threadMeta[THR_C].progress = (float) (i+1)/72;
 		}
 		
+		#ifdef GANTT
+		if(executions < NUM_GANTT_TIMES) {
+			threadEnds[execThread][executions] = osKernelSysTick();
+		}
+		++executions;
+		#endif
+		
 		lab5Yield();
 	}
 }
 
 void threadD(void const* args) {
+	#ifdef GANTT
+	int executions = 0;
+	#endif
 	volatile double total;
 	
 	while (true) {
+		
+		#ifdef GANTT
+		if(executions < NUM_GANTT_TIMES) {
+			threadStarts[execThread][executions] = osKernelSysTick();
+		}
+		#endif
+		
 		total = 0;
 		threadMeta[THR_D].progress = 0.0f;
 		
 		total = 1 + 5/(3*2) + 5/(5*4*3*2) + 5/(7*6*5*4*3*2) + 5/(9*8*7*6*5*4*3*2);
 		threadMeta[THR_D].progress = 1.0f;
 		
+		#ifdef GANTT
+		if(executions < NUM_GANTT_TIMES) {
+			threadEnds[execThread][executions] = osKernelSysTick();
+		}
+		++executions;
+		#endif
+		
 		lab5Yield();
 	}
 }
 
 void threadE(void const* args) {
+	#ifdef GANTT
+	int executions = 0;
+	#endif
 	volatile double total;
 	int i;
 	
 	while (true) {
+		
+		#ifdef GANTT
+		if(executions < NUM_GANTT_TIMES) {
+			threadStarts[execThread][executions] = osKernelSysTick();
+		}
+		#endif
+		
 		total = 0;
 		threadMeta[THR_E].progress = 0.0f;
 		
@@ -168,16 +257,33 @@ void threadE(void const* args) {
 			threadMeta[THR_E].progress =  (float) (i+1)/100;
 		}
 		
+		#ifdef GANTT
+		if(executions < NUM_GANTT_TIMES) {
+			threadEnds[execThread][executions] = osKernelSysTick();
+		}
+		++executions;
+		#endif
+		
 		lab5Yield();
 	}
 }
 
 void threadF(void const* args) {
+	#ifdef GANTT
+	int executions = 0;
+	#endif
 	volatile double total;
 	double pot;
 	int i;
 	
 	while (true) {
+		
+		#ifdef GANTT
+		if(executions < NUM_GANTT_TIMES) {
+			threadStarts[execThread][executions] = osKernelSysTick();
+		}
+		#endif
+		
 		total = 0;
 		pot = 1;
 		threadMeta[THR_F].progress = 0.0f;
@@ -188,34 +294,43 @@ void threadF(void const* args) {
 			threadMeta[THR_F].progress = (float) (i+1)/128;
 		}
 		
+		#ifdef GANTT
+		if(executions < NUM_GANTT_TIMES) {
+			threadEnds[execThread][executions] = osKernelSysTick();
+		}
+		++executions;
+		#endif
+		
 		lab5Yield();
 	}
 }
 
-void insertionSort(ThreadMetadata* arr[]) {
-	int i, key, j;
-    ThreadMetadata* elem;
-    for (i = 1; i < 6; i++) {
-        elem = arr[i];
-        key = elem->staticPrio;
-        j = i-1;
-        
-        while (j >= 0 && arr[j]->staticPrio > key) {
-            arr[j+1] = arr[j];
-            j = j-1;
-        }
-        
-        arr[j+1] = elem;
-    }
-}
-
 void threadIdle(void const* args) {
+	#ifdef GANTT
+	int x, y;
+	char toUart[25];
+	int executions = 0;
+	#endif
 	int i, key, j;
 	char toPrint[5];
     ThreadMetadata* elem;
 	ThreadMetadata* arr[6] = {&threadMeta[THR_A], &threadMeta[THR_B], &threadMeta[THR_C], &threadMeta[THR_D], &threadMeta[THR_E], &threadMeta[THR_F]};
 	
 	while (true) {
+		#ifdef GANTT
+		if(++executions == 10) {
+			for(x = 0; x < THR_IDLE; ++x) {
+				for(y = 0; y < NUM_GANTT_TIMES; ++y) {
+					sprintf(toUart, "%d %u %u\n\r", x, threadStarts[x][y], threadEnds[x][y]);
+					uart_sendString(toUart);
+				}
+			}
+			for(y = 0;  y < NUM_GANTT_TIMES*THR_IDLE; ++y) {
+				sprintf(toUart, "9 %u %u\n\r", threadMainStarts[y], threadMainEnds[y]);
+				uart_sendString(toUart);
+			}
+		}
+		#endif
 		/* Organiza a fila de prioridade para print */
 		for (i = 1; i < 6; ++i) {
 			elem = arr[i];
@@ -262,6 +377,7 @@ void init_tela() {
 
 void init_all() {
 	cfaf128x128x16Init();
+	uart_init(BAUD_115200, DATA_8 | STOP_ONE | PARITY_NONE);
 	init_tela();
 }
 
@@ -363,6 +479,13 @@ int main(void) {
 	/* Corpo do scheduler */
 	
 	for(schedulerRuns = 0; true; ++schedulerRuns) {
+		
+		#ifdef GANTT
+		if(schedulerRuns < NUM_GANTT_TIMES*THR_IDLE) {
+			threadMainStarts[schedulerRuns] = osKernelSysTick();
+		}
+		#endif
+		
 		// Desliga o relógio
 		osTimerStop(mainTimerId);
 		
@@ -447,6 +570,13 @@ int main(void) {
 		execThread = nextThread;
 		osTimerStart(mainTimerId, MSEC_TIMER_MAIN);
 		osSignalClear(mainId, 0x1);
+		
+		#ifdef GANTT
+		if(schedulerRuns < NUM_GANTT_TIMES*THR_IDLE) {
+			threadMainEnds[schedulerRuns] = osKernelSysTick();
+		}
+		#endif
+		
 		osSignalWait(0x1, osWaitForever);
 	}
 	
