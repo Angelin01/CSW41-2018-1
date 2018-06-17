@@ -24,19 +24,19 @@
 #define SEC_TIMER_E 167
 #define SEC_TIMER_F 100
 
-#define MSEC_TIMER_MAIN 4
+#define MSEC_TIMER_MAIN 3
 
 #define GANTT
 
 // Comente para que acontecam master faults
-#define DISABLE_MASTER_FAULT
+//#define DISABLE_MASTER_FAULT
 
 // Formula de prioridade
 // Basicamente: PorcentagemTicksRestantes * 200 + PrioridadeNormal
 #define laxity(x) \
         ((double)threadMeta[x].startTime + (double)threadMeta[x].maxTicks - (double)osKernelSysTick())
 #define dynamicPrio(x) \
-        ((laxity(x)/threadMeta[x].maxTicks) * 200 + threadMeta[x].staticPrio)
+        ((laxity(x)/threadMeta[x].maxTicks) * 100 + threadMeta[x].staticPrio)
 		
 #define runningTime(x) \
 		(threadMeta[x].endTime - threadMeta[x].startTime)
@@ -60,11 +60,11 @@ osTimerId mainTimerId;
 #ifdef GANTT
 #define NUM_GANTT_TIMES 20
 
-uint32_t threadStarts[THR_IDLE][NUM_GANTT_TIMES];
-uint32_t threadEnds[THR_IDLE][NUM_GANTT_TIMES];
+volatile uint32_t threadStarts[THR_IDLE][NUM_GANTT_TIMES];
+volatile uint32_t threadEnds[THR_IDLE][NUM_GANTT_TIMES];
 
-uint32_t threadMainStarts[NUM_GANTT_TIMES*THR_IDLE];
-uint32_t threadMainEnds[NUM_GANTT_TIMES*THR_IDLE];
+volatile uint32_t threadMainStarts[NUM_GANTT_TIMES*THR_IDLE];
+volatile uint32_t threadMainEnds[NUM_GANTT_TIMES*THR_IDLE];
 #endif
 
 // Número da thread que obteve o processador na última execução do escalonador
@@ -321,12 +321,12 @@ void threadIdle(void const* args) {
 		if(++executions == 10) {
 			for(x = 0; x < THR_IDLE; ++x) {
 				for(y = 0; y < NUM_GANTT_TIMES; ++y) {
-					sprintf(toUart, "%d %u %u\n\r", x, threadStarts[x][y], threadEnds[x][y]);
+					sprintf(toUart, "%c: %u %u\n\r", threadMeta[x].identifier, threadStarts[x][y], threadEnds[x][y]);
 					uart_sendString(toUart);
 				}
 			}
 			for(y = 0;  y < NUM_GANTT_TIMES*THR_IDLE; ++y) {
-				sprintf(toUart, "9 %u %u\n\r", threadMainStarts[y], threadMainEnds[y]);
+				sprintf(toUart, "Main: %u %u\n\r", threadMainStarts[y], threadMainEnds[y]);
 				uart_sendString(toUart);
 			}
 		}
@@ -344,6 +344,7 @@ void threadIdle(void const* args) {
 			
 			arr[j+1] = elem;
 		}
+		#ifndef GANTT
 		/* Printar coisas no display */
 		for(i = 0; i < 6; ++i) {
 			/* Print faultCount */
@@ -353,6 +354,7 @@ void threadIdle(void const* args) {
 			/* Fila de prioridade */
 			GrStringDraw(&sContext, &arr[i]->identifier, 1, 88 + 6*i, 36, 1);
 		}
+		#endif
 	}
 }
 
@@ -401,8 +403,24 @@ void mainTimerHandler(void const* args) {
 }
 
 void masterFault() {
+	#ifdef GANTT
+	int x, y;
+	char toUart[25];
+	#endif
 	GrContextForegroundSet(&sContext, ClrRed);
 	GrStringDraw(&sContext, "MASTER FAULT", -1, 10, 60, 1);
+	#ifdef GANTT
+	for(x = 0; x < THR_IDLE; ++x) {
+		for(y = 0; y < NUM_GANTT_TIMES; ++y) {
+			sprintf(toUart, "%c: %u %u\n\r", threadMeta[x].identifier, threadStarts[x][y], threadEnds[x][y]);
+			uart_sendString(toUart);
+		}
+	}
+	for(y = 0;  y < NUM_GANTT_TIMES*THR_IDLE; ++y) {
+		sprintf(toUart, "Main: %u %u\n\r", threadMainStarts[y], threadMainEnds[y]);
+		uart_sendString(toUart);
+	}
+	#endif
 	while(1);
 }
 
@@ -500,24 +518,27 @@ int main(void) {
 					// Executou muito rapido! Diminuir prioridade
 					threadMeta[i].staticPrio += 5;
 					
+					#ifndef GANTT
 					/* Print prioridade */
 					sprintf(toPrint, "%d", threadMeta[i].staticPrio);
 					GrStringDraw(&sContext, toPrint, -1, 12, 10*(i+1), 1);
+					#endif
 				}
 				else if(runningTime(i) > threadMeta[i].maxTicks) {
 					++threadMeta[i].faultCount;
 					// Atrasou! Aumentar prioridade
 					
+					#ifndef GANTT
 					/* Print prioridade */
 					sprintf(toPrint, "%d", threadMeta[i].staticPrio);
-					
 					GrStringDraw(&sContext, toPrint, -1, 12, 10*(i+1), 1);
+					#endif
+					
 					if(threadMeta[i].staticPrio > -100) {
 						threadMeta[i].staticPrio -= 5;
-						
 					}
 					#ifndef DISABLE_MASTER_FAULT
-					else {
+					else if(i == THR_F){
 						masterFault();
 					}
 					#endif
@@ -526,7 +547,9 @@ int main(void) {
 			}
 			
 			if (threadMeta[i].state != WAITING) {
+				#ifndef GANTT
 				threadMeta[i].remainingTicks = laxity(i);
+				#endif
 				threadMeta[i].dynamPrio = dynamicPrio(i);
 				if (threadMeta[i].dynamPrio < lowestPrioValueFound) {
 					lowestPrioValueFound = threadMeta[i].dynamPrio;
@@ -534,6 +557,7 @@ int main(void) {
 				}
 			}
 			
+			#ifndef GANTT
 			/* Printa estado */
 			if(schedulerRuns%20 == 0) {
 				GrStringDraw(&sContext, threadMeta[i].state == RUNNING ? "X" : threadMeta[i].state == READY ? "R" : "W", -1, 42, 10*(i+1), 1);
@@ -541,6 +565,7 @@ int main(void) {
 				sprintf(toPrint, "%3f", threadMeta[i].progress * 100);
 				GrStringDraw(&sContext, toPrint, 3, 50, 10*(i+1), 1);
 			}
+			#endif
 		}
 		
 		// A thread idle tem prioridade osPriorityBelowNormal.
